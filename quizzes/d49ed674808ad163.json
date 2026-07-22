@@ -1,0 +1,125 @@
+{
+    "questions": [
+        {
+            "id": "q0",
+            "question": "Imagine constructing a safety net for trapeze artists. The net's required strength depends on how high the artists jump, how often they practice, and how easily they can catch themselves if the net fails. In automotive software, which framework uses a similar three-factor logic to determine how rigorously a system must be tested before installation?",
+            "options": [
+                "The Agile Scrum framework",
+                "The Automotive Safety Integrity Levels (ASIL) system",
+                "The ISO 9001 quality certification",
+                "The Lean Startup methodology"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "ISO 26262 employs the ASIL framework, which classifies risk based on severity, exposure, and controllability. Just like the trapeze net's requirements scale with height, frequency, and self-recovery ability, ASIL ratings dictate the precise safety measures needed for each vehicle system."
+        },
+        {
+            "id": "q1",
+            "question": "Consider an orchestra where each musician plays their own instrument in isolation versus a conductor synchronizing all sections to perform a single symphony. The SDV concept aims to transform vehicle subsystems (like climate control, battery management, and infotainment) from isolated components into what functional structure?",
+            "options": [
+                "Decoupled hardware modules",
+                "Cross-domain applications",
+                "Standalone firmware updates",
+                "Isolated quality-managed systems"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "Cross-domain applications intercommunicate and interact harmoniously, turning disparate functions into a unified entity. This mirrors how a conductor synchronizes independent musicians into a cohesive performance, enabling systems like AC and battery management to coordinate for a single user goal."
+        },
+        {
+            "id": "q2",
+            "question": "Traditional car development often builds a full-scale prototype before testing usability, which is expensive and slow. A 'digital first' approach shifts this by initially exploring features in virtual environments. How does this analogy compare to architectural design?",
+            "options": [
+                "Building a miniature cardboard model before drawing blueprints",
+                "Using 3D modeling software to test layout and feedback before breaking ground",
+                "Painting the exterior walls before installing plumbing",
+                "Waiting for tenants to move in before finalizing the floor plan"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "Digital first virtualizes design and usability testing early in the lifecycle (left-shifting), allowing iteration based on user feedback without costly physical hardware. This parallels using 3D architectural models to validate layouts and functionality before committing to expensive construction."
+        },
+        {
+            "id": "q3",
+            "question": "Smartphone manufacturers heavily rely on standardized components and abstraction layers to simplify development, allowing them to produce millions of identical units. Automotive manufacturers face high heterogeneity and produce many vehicle variants. Which everyday construction analogy best illustrates this developmental difference?",
+            "options": [
+                "Building identical prefabricated houses on a flat lot",
+                "Constructing custom, unique buildings for different plots with varying zoning laws",
+                "Assembling toys from a single universal plastic mold",
+                "Decorating a single apartment with the same furniture layout"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "The automotive industry deals with diverse customer preferences, regional regulations, and different vehicle types, leading to high heterogeneity and many variants. Unlike the standardized, abstracted smartphone model, automotive development resembles building custom structures adapted to specific site constraints and requirements."
+        },
+        {
+            "id": "q4",
+            "question": "Historically, car hardware and software were released simultaneously, with major updates only occurring every seven years. The SDV model decouples these release schedules. Which analogy best explains the mechanical advantage of this decoupling?",
+            "options": [
+                "Upgrading a house\u2019s smart home apps without rebuilding the foundation",
+                "Painting the exterior of a house every year",
+                "Replacing the entire roof whenever you change the carpet",
+                "Waiting until the house is demolished to install modern windows"
+            ],
+            "correct_answer_index": 0,
+            "explanation": "Decoupling allows software features to be developed, deployed, and updated continuously via wireless delivery without requiring simultaneous hardware redesign or major manufacturing cycles. This mirrors updating smart home applications independently of the underlying house structure."
+        },
+        {
+            "id": "q5",
+            "question": "Automotive development traditionally prioritizes physical reliability, real-time processing, and strict certification, while modern digital development prioritizes speed, cloud integration, and agile iteration. When an OEM tries to merge these into a single vehicle platform, what is the primary operational challenge described in the text?",
+            "options": [
+                "Creating sub-organizations that can safely operate at different speeds and cultures while sharing a modular platform",
+                "Eliminating all physical sensors to rely solely on cloud data",
+                "Replacing all safety certifications with internet-based security protocols",
+                "Standardizing all vehicle variants to match smartphone production volumes"
+            ],
+            "correct_answer_index": 0,
+            "explanation": "The 'clash of two worlds' requires organizations to manage traditional engineering and modern software development together. This necessitates modular architectures and organizational units that can operate at different speeds and cultures while maintaining harmony and safety compliance."
+        },
+        {
+            "id": "q6",
+            "question": "In traditional manufacturing, products are finalized before market feedback is gathered, often leading to mismatches between features and consumer desires. The SDV lifecycle addresses this through continuous virtual testing and early user feedback. How does this process mechanically align with the concept of 'product-market fit'?",
+            "options": [
+                "It locks the feature set at the design phase to reduce production costs",
+                "It iteratively refines digital experiences based on actual usage data and early feedback before scaling",
+                "It prioritizes hardware durability over software functionality",
+                "It eliminates the need for customer consent to collect usage data"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "Product-market fit is achieved by rapidly exploring, testing, and adapting features virtually with early customer feedback. This iterative refinement ensures the final digital experience aligns with actual consumer needs before mass production, much like adjusting a prototype based on real-world user trials."
+        },
+        {
+            "id": "q7",
+            "question": "Imagine a personal butler who notices you feeling slightly nauseous and simultaneously lowers the room temperature, opens a window, and slows down the pacing of the room's music. In an SDV, what underlying technological mechanism enables this type of proactive, context-aware comfort adjustment?",
+            "options": [
+                "Isolated quality-managed (QM) entertainment systems",
+                "Cross-domain data fusion and sensor interpretation",
+                "Rigid seven-year hardware release cycles",
+                "Decoupled cloud-style software development"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "Cross-domain data fusion allows the vehicle to integrate inputs from multiple sensors (health, road curvature, speed) and coordinate responses across different systems (AC, windows, driving style). This mirrors how a butler synchronizes multiple environmental adjustments based on a single observed condition."
+        },
+        {
+            "id": "q8",
+            "question": "Automotive safety standards assign different development rigor to different vehicle systems based on their potential impact on human life. How does the ISO 26262 framework practically differentiate between a braking system and an in-car entertainment system?",
+            "options": [
+                "Both undergo identical rigorous safety testing to ensure brand consistency",
+                "The braking system receives a high ASIL rating requiring strict risk mitigation, while the entertainment system is assigned a QM rating with standard quality processes",
+                "Entertainment systems are exempt from all safety regulations, while braking systems are tested only by third-party engineers",
+                "Both are rated ASIL D to maximize software complexity and development costs"
+            ],
+            "correct_answer_index": 1,
+            "explanation": "ISO 26262 quantifies risk using ASIL ratings; safety-critical systems like brakes get high ASIL ratings demanding rigorous standards, while lower-impact systems like entertainment are classified as QM with standard quality management. This ensures safety resources are allocated proportionally to actual risk."
+        },
+        {
+            "id": "q9",
+            "question": "The automotive industry is shifting its revenue model from predominantly one-time hardware sales to recurring income from digital services and software features. Which analogy best captures the mechanical shift in value generation described for future vehicle generations?",
+            "options": [
+                "Selling a single-use disposable camera versus providing a digital camera with monthly storage subscriptions",
+                "Manufacturing physical books versus selling printed newspapers",
+                "Repairing mechanical watches versus polishing watch faces annually",
+                "Selling standalone toasters versus upgrading toaster ovens every seven years"
+            ],
+            "correct_answer_index": 0,
+            "explanation": "The text highlights a shift toward digital services becoming the primary revenue driver, similar to how the tech industry moved from one-time hardware purchases to continuous subscription or service-based models. This requires identifying essential 'killer apps' that drive ongoing user engagement and recurring value."
+        }
+    ],
+    "quiz_id": "d49ed674808ad163"
+}

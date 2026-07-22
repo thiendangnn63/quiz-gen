@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quiz</title>
+<style>
+  :root {
+    --bg: #14161a;
+    --panel: #1c1f26;
+    --border: #2a2e37;
+    --text: #e7e9ec;
+    --muted: #8a8f99;
+    --accent: #5b8def;
+    --accent-hover: #4a79d6;
+    --correct: #3fae6a;
+    --incorrect: #d1554a;
+    --radius: 6px;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    line-height: 1.5;
+  }
+
+  .wrap {
+    max-width: 640px;
+    margin: 0 auto;
+    padding: 48px 20px 80px;
+  }
+
+  header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 32px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 16px;
+  }
+
+  header h1 {
+    font-size: 20px;
+    margin: 0;
+  }
+
+  #timer {
+    font-variant-numeric: tabular-nums;
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  #name-gate {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+
+  #name-gate label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+
+  input[type="text"] {
+    width: 100%;
+    padding: 10px 12px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: 15px;
+  }
+
+  input[type="text"]:focus, button:focus, .option:focus-within {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+
+  .question {
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .question .index {
+    color: var(--muted);
+    font-size: 13px;
+    margin-bottom: 6px;
+  }
+
+  .question .text {
+    font-size: 16px;
+    margin-bottom: 14px;
+  }
+
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    cursor: pointer;
+  }
+
+  .option:hover {
+    border-color: var(--accent);
+  }
+
+  .option input {
+    accent-color: var(--accent);
+  }
+
+  .option.selected {
+    border-color: var(--accent);
+    background: rgba(91, 141, 239, 0.08);
+  }
+
+  button.primary {
+    width: 100%;
+    padding: 14px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 8px;
+  }
+
+  button.primary:hover {
+    background: var(--accent-hover);
+  }
+
+  button.primary:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+  }
+
+  #status {
+    font-size: 13px;
+    color: var(--muted);
+    margin-top: 10px;
+    min-height: 18px;
+  }
+
+  #status.error {
+    color: var(--incorrect);
+  }
+
+  #result {
+    display: none;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 28px;
+    text-align: center;
+  }
+
+  #result .verdict {
+    font-size: 22px;
+    font-weight: 700;
+    margin-bottom: 6px;
+  }
+
+  #result .verdict.pass { color: var(--correct); }
+  #result .verdict.fail { color: var(--incorrect); }
+
+  #result .detail {
+    color: var(--muted);
+    font-size: 14px;
+  }
+
+  .hidden { display: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="quiz-title">Quiz</h1>
+    <span id="timer">00:00</span>
+  </header>
+
+  <div id="name-gate">
+    <label for="name-input">Your name</label>
+    <input type="text" id="name-input" autocomplete="off">
+  </div>
+
+  <form id="quiz-form">
+    <div id="questions"></div>
+    <button type="submit" class="primary" id="submit-btn" disabled>Submit</button>
+    <div id="status"></div>
+  </form>
+
+  <div id="result">
+    <div class="verdict" id="result-verdict"></div>
+    <div class="detail" id="result-detail"></div>
+  </div>
+</div>
+
+<script>
+(function () {
+  const params = new URLSearchParams(window.location.search);
+  const quizId = params.get('quiz_id');
+
+  const el = {
+    title: document.getElementById('quiz-title'),
+    timer: document.getElementById('timer'),
+    nameInput: document.getElementById('name-input'),
+    form: document.getElementById('quiz-form'),
+    questions: document.getElementById('questions'),
+    submitBtn: document.getElementById('submit-btn'),
+    status: document.getElementById('status'),
+    result: document.getElementById('result'),
+    verdict: document.getElementById('result-verdict'),
+    detail: document.getElementById('result-detail'),
+  };
+
+  let sessionToken = null;
+  let questions = [];
+  let timerInterval = null;
+  let startedAt = null;
+
+  function setStatus(msg, isError) {
+    el.status.textContent = msg || '';
+    el.status.classList.toggle('error', !!isError);
+  }
+
+  function startTimer() {
+    startedAt = Date.now();
+    timerInterval = setInterval(() => {
+      const secs = Math.floor((Date.now() - startedAt) / 1000);
+      const m = String(Math.floor(secs / 60)).padStart(2, '0');
+      const s = String(secs % 60).padStart(2, '0');
+      el.timer.textContent = `${m}:${s}`;
+    }, 1000);
+  }
+
+  function stopTimer() {
+    clearInterval(timerInterval);
+  }
+
+  function renderQuestions() {
+    el.questions.innerHTML = '';
+    questions.forEach((q, qi) => {
+      const card = document.createElement('div');
+      card.className = 'question';
+
+      const index = document.createElement('div');
+      index.className = 'index';
+      index.textContent = `Question ${qi + 1} of ${questions.length}`;
+      card.appendChild(index);
+
+      const text = document.createElement('div');
+      text.className = 'text';
+      text.textContent = q.text;
+      card.appendChild(text);
+
+      q.options.forEach((opt, oi) => {
+        const label = document.createElement('label');
+        label.className = 'option';
+
+        const radio = document.createElement('input');
+        radio.type = 'radio';
+        radio.name = `q_${q.id}`;
+        radio.value = oi;
+
+        radio.addEventListener('change', () => {
+          card.querySelectorAll('.option').forEach(o => o.classList.remove('selected'));
+          label.classList.add('selected');
+          checkComplete();
+        });
+
+        const span = document.createElement('span');
+        span.textContent = opt;
+
+        label.appendChild(radio);
+        label.appendChild(span);
+        card.appendChild(label);
+      });
+
+      el.questions.appendChild(card);
+    });
+  }
+
+  function checkComplete() {
+    const allAnswered = questions.every(q =>
+      el.form.querySelector(`input[name="q_${q.id}"]:checked`)
+    );
+    const hasName = el.nameInput.value.trim().length > 0;
+    el.submitBtn.disabled = !(allAnswered && hasName);
+  }
+
+  el.nameInput.addEventListener('input', checkComplete);
+
+  async function loadQuiz() {
+    if (!quizId) {
+      setStatus('No quiz_id specified in the URL.', true);
+      return;
+    }
+    try {
+      const res = await fetch(`/api/quiz/${quizId}/start`, { method: 'POST' });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      sessionToken = data.session_token;
+      questions = data.questions;
+      el.title.textContent = data.title || 'Quiz';
+      renderQuestions();
+      startTimer();
+    } catch (err) {
+      setStatus(`Could not load quiz: ${err.message}`, true);
+    }
+  }
+
+  el.form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    el.submitBtn.disabled = true;
+    setStatus('Submitting...');
+
+    const answers = {};
+    questions.forEach(q => {
+      const checked = el.form.querySelector(`input[name="q_${q.id}"]:checked`);
+      answers[q.id] = checked ? parseInt(checked.value, 10) : null;
+    });
+
+    try {
+      const res = await fetch(`/api/quiz/${quizId}/submit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_token: sessionToken,
+          name: el.nameInput.value.trim(),
+          answers,
+        }),
+      });
+      if (!res.ok) throw new Error(`Server returned ${res.status}`);
+      const data = await res.json();
+      stopTimer();
+      showResult(data);
+    } catch (err) {
+      setStatus(`Submission failed: ${err.message}`, true);
+      el.submitBtn.disabled = false;
+    }
+  });
+
+  function showResult(data) {
+    el.form.classList.add('hidden');
+    el.result.style.display = 'block';
+    el.verdict.textContent = data.passed ? 'Pass' : 'Fail';
+    el.verdict.classList.add(data.passed ? 'pass' : 'fail');
+    el.detail.textContent = `Score: ${data.score}/${data.total} | Time: ${data.time_taken}`;
+
+    const feedbackContainer = document.createElement('div');
+    feedbackContainer.style.marginTop = '24px';
+    feedbackContainer.style.textAlign = 'left';
+
+    data.feedback.forEach((item, index) => {
+      const qDiv = document.createElement('div');
+      qDiv.className = 'question';
+      qDiv.style.marginBottom = '16px';
+      
+      const qTitle = document.createElement('div');
+      qTitle.className = 'text';
+      qTitle.innerHTML = `<strong>${index + 1}. ${item.question}</strong>`;
+      
+      const pStatus = document.createElement('div');
+      pStatus.style.marginBottom = '8px';
+      if (item.is_correct) {
+          pStatus.innerHTML = `<span style="color: var(--correct)">✓ Correct</span>`;
+      } else {
+          pStatus.innerHTML = `<span style="color: var(--incorrect)">✗ Incorrect</span><br>
+                               <span style="font-size: 14px; color: var(--muted)">Your answer: ${item.selected_option || 'None'}</span><br>
+                               <span style="font-size: 14px; color: var(--correct)">Correct answer: ${item.correct_option}</span>`;
+      }
+
+      const pExp = document.createElement('div');
+      pExp.style.fontSize = '14px';
+      pExp.style.color = 'var(--muted)';
+      pExp.style.marginTop = '8px';
+      pExp.style.paddingTop = '8px';
+      pExp.style.borderTop = '1px solid var(--border)';
+      pExp.textContent = `Explanation: ${item.explanation}`;
+
+      qDiv.appendChild(qTitle);
+      qDiv.appendChild(pStatus);
+      qDiv.appendChild(pExp);
+      feedbackContainer.appendChild(qDiv);
+    });
+
+    el.result.appendChild(feedbackContainer);
+  }
+
+  loadQuiz();
+})();
+</script>
+</body>
+</html>
