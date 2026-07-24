@@ -5,21 +5,46 @@ import time
 import uuid
 import random
 import queue
-import webbrowser
-from threading import Timer
+import socket
+import threading
+import hashlib
 from functools import wraps
-from flask import Flask, request, jsonify, render_template_string, Response
+from flask import Flask, request, jsonify, render_template_string, Response, send_from_directory
+from werkzeug.utils import secure_filename
+import generator
+import qr_generator
 
 app = Flask(__name__)
-DB_PATH = ""
+DB_PATH = "central_quiz.db"
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "password"
+PORT = 8080
 
 active_sessions = {}
 clients = []
+dashboard_clients = []
+
+os.makedirs("uploads", exist_ok=True)
+os.makedirs("quizzes", exist_ok=True)
+os.makedirs("qr", exist_ok=True)
 
 def init_db():
     with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS quizzes (
+                quiz_id TEXT PRIMARY KEY,
+                title TEXT,
+                status TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        try:
+            conn.execute("ALTER TABLE quizzes ADD COLUMN is_active INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            pass
+            
+        conn.execute("UPDATE quizzes SET is_active = 0")
+        
         conn.execute("""
             CREATE TABLE IF NOT EXISTS results (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,39 +69,454 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
+def process_pdf(filepath, quiz_id):
+    try:
+        questions = generator.generate_questions(filepath)
+        
+        for i, q in enumerate(questions):
+            q["id"] = f"q{i}"
+            
+        with open(f"quizzes/{quiz_id}.json", "w", encoding='utf-8') as f:
+            json.dump({"quiz_id": quiz_id, "questions": questions}, f, indent=4)
+            
+        qr_generator.qrcode_gen(quiz_id, PORT)
+        
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE quizzes SET status = 'ready' WHERE quiz_id = ?", (quiz_id,))
+            
+    except Exception:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE quizzes SET status = 'failed' WHERE quiz_id = ?", (quiz_id,))
+    
+    finally:
+        for q in dashboard_clients:
+            q.put('update')
+
+@app.route('/')
+@requires_auth
+def dashboard():
+    html = """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        --bg: #14161c; --panel: #1c1f27; --panel-raised: #22262f;
+        --border: #2b2f3a; --text: #eae7df; --muted: #82858f;
+        --accent: #c9a24b; --accent-hover: #dab35e; --accent-dim: rgba(201,162,75,0.12);
+        --correct: #5fae7a; --correct-dim: rgba(95,174,122,0.14);
+        --incorrect: #d16656; --incorrect-dim: rgba(209,102,86,0.14);
+        --info: #6b8fc9; --info-dim: rgba(107,143,201,0.14);
+        --radius: 10px; --radius-sm: 6px;
+        --font-display: 'Fraunces', Georgia, serif;
+        --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body);
+        padding: 56px 20px; background-image:
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
+      .container { max-width: 900px; margin: 0 auto; }
+      .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; }
+      h1 { font-family: var(--font-display); font-weight: 600; font-size: 32px; margin: 0 0 28px; border-bottom: 1px solid var(--border); padding-bottom: 20px; display: flex; justify-content: space-between; align-items: baseline; letter-spacing: -0.01em; }
+      .upload-section { background: var(--panel); padding: 24px; border-radius: var(--radius); margin-bottom: 28px; border: 1px solid var(--border); }
+      .upload-section h3 { font-family: var(--font-display); font-weight: 600; font-size: 16px; margin: 0 0 16px; color: var(--text); }
+      .upload-row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+      input[type="file"] { color: var(--muted); font-size: 14px; font-family: var(--font-body); flex: 1; min-width: 200px; }
+      input[type="file"]::file-selector-button { padding: 8px 14px; background: var(--panel-raised); color: var(--text); border: 1px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font-body); font-weight: 500; cursor: pointer; margin-right: 10px; }
+      button { padding: 10px 18px; background: var(--accent); color: #191305; border: none; border-radius: var(--radius-sm); font-weight: 600; font-family: var(--font-body); cursor: pointer; transition: background 0.15s ease; }
+      button:hover { background: var(--accent-hover); }
+      button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+      table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+      th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border); }
+      tr:last-child td { border-bottom: none; }
+      tbody tr:hover { background: var(--panel-raised); }
+      th { background: rgba(255, 255, 255, 0.03); font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+      .status-badge { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 9px; border-radius: 3px; border: 1.5px dashed currentColor; display: inline-block; transform: rotate(-1.5deg); font-weight: 500; }
+      .status-ready { background: var(--correct-dim); color: var(--correct); }
+      .status-generating { background: var(--info-dim); color: var(--info); }
+      .status-failed { background: var(--incorrect-dim); color: var(--incorrect); }
+      .actions a { color: var(--accent); text-decoration: none; margin-right: 14px; font-weight: 600; font-size: 13px; }
+      .actions a:hover { text-decoration: underline; }
+      .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
+    </style>
+    </head>
+    <body>
+    <div class="container">
+      <h1><span><span class="eyebrow">Central Quiz</span><br>Quiz Management Dashboard</span></h1>
+      <div class="upload-section">
+        <h3>Create new quiz</h3>
+        <form id="upload-form">
+          <div class="upload-row">
+            <input type="file" id="pdf-file" accept=".pdf" required>
+            <button type="submit" id="upload-btn">Upload &amp; generate</button>
+          </div>
+        </form>
+        <div id="upload-status" style="margin-top: 12px; font-size: 13px; color: var(--muted); font-family: var(--font-mono);"></div>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Title</th>
+            <th>Quiz ID</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="quiz-list">
+        </tbody>
+      </table>
+    </div>
+    <script>
+      const uploadForm = document.getElementById('upload-form');
+      const uploadBtn = document.getElementById('upload-btn');
+      const uploadStatus = document.getElementById('upload-status');
+      const quizList = document.getElementById('quiz-list');
+
+      uploadForm.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const fileInput = document.getElementById('pdf-file');
+          if (!fileInput.files[0]) return;
+
+          uploadBtn.disabled = true;
+          uploadStatus.textContent = "Uploading...";
+
+          const formData = new FormData();
+          formData.append('file', fileInput.files[0]);
+
+          try {
+              const res = await fetch('/api/upload', { method: 'POST', body: formData });
+              const data = await res.json();
+              if(data.status === 'success') {
+                  uploadStatus.textContent = "Upload successful! Generating quiz...";
+                  fileInput.value = '';
+              } else {
+                  uploadStatus.textContent = "Upload failed.";
+              }
+          } catch(err) {
+              uploadStatus.textContent = "Error during upload.";
+          }
+          uploadBtn.disabled = false;
+      });
+
+      async function fetchQuizzes() {
+          const res = await fetch('/api/quizzes');
+          const data = await res.json();
+          quizList.innerHTML = '';
+          data.forEach(q => {
+              let actions = '';
+              if (q.status === 'ready') {
+                  actions = `
+                    <a href="/launch/${q.quiz_id}">Launch</a>
+                    <a href="/edit/${q.quiz_id}">Edit</a>
+                    <a href="/quiz/results?quiz_id=${q.quiz_id}">Results</a>
+                  `;
+              }
+              actions += `<a href="#" onclick="deleteQuiz('${q.quiz_id}', '${q.title}')" style="color: #d1554a;">Delete</a>`;
+              const tr = document.createElement('tr');
+              tr.innerHTML = `
+                <td>${q.title}</td>
+                <td style="font-family: monospace; color: var(--muted);">${q.quiz_id}</td>
+                <td><span class="status-badge status-${q.status}">${q.status.toUpperCase()}</span></td>
+                <td class="actions">${actions}</td>
+              `;
+              quizList.appendChild(tr);
+          });
+      }
+
+      fetchQuizzes();
+      
+      async function deleteQuiz(quizId, title) {
+          if (!confirm('Are you sure you want to delete this quiz and all its results? This cannot be undone.')) return;
+          try {
+              const response = await fetch(`/api/quizzes/${quizId}/${title}`, { method: 'DELETE' });
+              if (!response.ok) {
+                  alert('Failed to delete quiz.');
+              }
+          } catch (e) {
+              console.error('Error deleting quiz:', e);
+          }
+      }
+      
+      const evtSource = new EventSource('/api/dashboard_stream');
+      evtSource.onmessage = function(event) {
+          if(event.data === 'update') {
+              fetchQuizzes();
+              if (uploadStatus.textContent.includes("Generating")) {
+                  uploadStatus.textContent = "Process complete!";
+                  setTimeout(() => uploadStatus.textContent = "", 3000);
+              }
+          }
+      };
+    </script>
+    </body>
+    </html>
+    """
+    return html
+
+@app.route('/api/quiz/<quiz_id>/toggle', methods=['POST'])
+@requires_auth
+def toggle_quiz(quiz_id):
+    data = request.json
+    active_status = 1 if data.get("active") else 0
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("UPDATE quizzes SET is_active = ? WHERE quiz_id = ?", (active_status, quiz_id))
+        
+    for q in dashboard_clients:
+        q.put('update')
+        
+    return jsonify({"status": "success", "is_active": active_status})
+
+@app.route('/api/quizzes/<quiz_id>/<title>', methods=['DELETE'])
+@requires_auth
+def delete_quiz(quiz_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        conn.execute("DELETE FROM results WHERE quiz_id = ?", (quiz_id,))
+    
+    paths = [
+        os.path.join("quizzes", f"{quiz_id}.json"),
+        os.path.join("qr", f"qr_{quiz_id}.png"),
+        os.path.join("uploads", f"{quiz_id}.pdf")
+    ]
+    
+    for path in paths:
+        if os.path.exists(path):
+            os.remove(path)
+
+    for q in dashboard_clients:
+        q.put('update')
+        
+    return jsonify({"status": "success"})
+
+@app.route('/api/upload', methods=['POST'])
+@requires_auth
+def upload_file():
+    if 'file' not in request.files:
+        return jsonify({"error": "No file"}), 400
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "Empty filename"}), 400
+        
+    filename = secure_filename(file.filename)
+    quiz_id = hashlib.sha256(f"{filename}_{time.time()}".encode()).hexdigest()[:16]
+    filepath = os.path.join("uploads", f"{quiz_id}.pdf")
+    file.save(filepath)
+    
+    title = os.path.splitext(filename)[0]
+    
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("INSERT INTO quizzes (quiz_id, title, status) VALUES (?, ?, ?)", (quiz_id, title, "generating"))
+        
+    for q in dashboard_clients:
+        q.put('update')
+        
+    threading.Thread(target=process_pdf, args=(filepath, quiz_id)).start()
+    
+    return jsonify({"status": "success", "quiz_id": quiz_id})
+
+@app.route('/api/quizzes')
+@requires_auth
+def list_quizzes():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT quiz_id, title, status, is_active, created_at FROM quizzes ORDER BY created_at DESC")
+        results = cursor.fetchall()
+        
+    data = [{"quiz_id": r[0], "title": r[1], "status": r[2], "is_active": bool(r[3]), "created_at": r[4]} for r in results]
+    return jsonify(data)
+
+@app.route('/api/dashboard_stream')
+def dashboard_stream():
+    def stream():
+        q = queue.Queue()
+        dashboard_clients.append(q)
+        try:
+            while True:
+                yield f"data: {q.get()}\n\n"
+        finally:
+            dashboard_clients.remove(q)
+    return Response(stream(), mimetype='text/event-stream')
+
+@app.route('/launch/<quiz_id>')
+@requires_auth
+def launch_quiz(quiz_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        row = cursor.fetchone()
+        
+    is_active_initial = bool(row[0]) if row else False
+    btn_text = "Close Session" if is_active_initial else "Start Session"
+    btn_bg = "#d16656" if is_active_initial else "#5fae7a"
+    js_is_active = "true" if is_active_initial else "false"
+
+    html = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Launch Quiz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+      :root {{
+        --bg: #14161c; --panel: #1c1f27; --border: #2b2f3a; --text: #eae7df;
+        --muted: #82858f; --accent: #c9a24b;
+        --font-display: 'Fraunces', Georgia, serif;
+        --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
+      }}
+      * {{ box-sizing: border-box; }}
+      body {{
+        background: var(--bg); color: var(--text); font-family: var(--font-body);
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        min-height: 100vh; margin: 0; text-align: center; padding: 20px;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }}
+      .panel {{ background: var(--panel); border: 1px solid var(--border); padding: 44px 48px; border-radius: 12px; max-width: 380px; }}
+      .eyebrow {{ font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); margin: 0 0 10px; }}
+      h1 {{ font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0; letter-spacing: -0.01em; }}
+      .qr-frame {{ background: #fff; padding: 16px; border-radius: 8px; display: inline-block; margin: 24px 0; }}
+      img {{ display: block; max-width: 260px; width: 100%; }}
+      .quiz-id {{ font-family: var(--font-mono); font-size: 12px; color: var(--muted); margin-bottom: 24px; }}
+      button#toggle-btn {{ padding: 12px 24px; font-weight: 600; cursor: pointer; margin-bottom: 24px; border: none; border-radius: 6px; font-family: var(--font-body); font-size: 15px; color: #fff; background: {btn_bg}; transition: background 0.2s; }}
+      a.primary {{ display: inline-block; color: #191305; background: var(--accent); text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 22px; border-radius: 6px; }}
+      a.primary:hover {{ background: #dab35e; }}
+      a.back {{ display: block; margin-top: 20px; font-size: 13px; color: var(--muted); text-decoration: none; }}
+      a.back:hover {{ color: var(--text); }}
+    </style>
+    </head>
+    <body>
+      <div class="panel">
+        <p class="eyebrow">Central Quiz</p>
+        <h1>Manage Session</h1>
+        <div class="qr-frame">
+          <img src="/qr/qr_{quiz_id}.png" alt="QR Code">
+        </div>
+        <div class="quiz-id">{quiz_id}</div>
+        <button id="toggle-btn" onclick="toggleSession()">{btn_text}</button>
+        <br>
+        <a class="primary" href="/quiz?quiz_id={quiz_id}" target="_blank">Open on this device</a>
+        <a class="back" href="/">&larr; Back to dashboard</a>
+      </div>
+      <script>
+        let isActive = {js_is_active};
+        const quizId = "{quiz_id}";
+        const btn = document.getElementById('toggle-btn');
+
+        async function toggleSession() {{
+            isActive = !isActive;
+            try {{
+                await fetch(`/api/quiz/${{quizId}}/toggle`, {{
+                    method: 'POST',
+                    headers: {{ 'Content-Type': 'application/json' }},
+                    body: JSON.stringify({{ active: isActive }})
+                }});
+                updateUI();
+            }} catch (e) {{
+                isActive = !isActive;
+                alert("Failed to toggle session");
+            }}
+        }}
+
+        function updateUI() {{
+            if (isActive) {{
+                btn.textContent = "Close Session";
+                btn.style.background = "#d16656";
+            }} else {{
+                btn.textContent = "Start Session";
+                btn.style.background = "#5fae7a";
+            }}
+        }}
+      </script>
+    </body>
+    </html>
+    """
+    return html
+
+@app.route('/qr/<path:filename>')
+def serve_qr(filename):
+    return send_from_directory('qr', filename)
+
 @app.route('/quiz')
 def serve_quiz():
     with open('quiz_template.html', 'r', encoding='utf-8') as f:
         return render_template_string(f.read())
 
 @app.route('/edit/<quiz_id>')
+@requires_auth
 def edit_quiz(quiz_id):
     html = """
     <!DOCTYPE html>
     <html lang="en">
     <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Quiz</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     <style>
-      :root { --bg: #14161a; --panel: #1c1f26; --border: #2a2e37; --text: #e7e9ec; --muted: #8a8f99; --accent: #5b8def; --accent-hover: #4a79d6; --radius: 6px; }
+      :root {
+        --bg: #14161c; --panel: #1c1f27; --border: #2b2f3a; --text: #eae7df;
+        --muted: #82858f; --accent: #c9a24b; --accent-hover: #dab35e;
+        --correct: #5fae7a; --radius: 10px; --radius-sm: 6px;
+        --font-display: 'Fraunces', Georgia, serif;
+        --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
+      }
       * { box-sizing: border-box; }
-      body { margin: 0; background: var(--bg); color: var(--text); font-family: sans-serif; line-height: 1.5; padding: 48px 20px; }
+      body {
+        margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body);
+        line-height: 1.5; padding: 48px 20px;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        background-size: 32px 32px;
+      }
       .wrap { max-width: 640px; margin: 0 auto; }
-      .question { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; margin-bottom: 16px; }
-      input, textarea { width: 100%; padding: 10px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius); margin-bottom: 8px; font-family: inherit; }
-      textarea { resize: vertical; min-height: 80px; }
-      button { width: 100%; padding: 14px; background: var(--accent); color: #fff; border: none; border-radius: var(--radius); font-weight: bold; cursor: pointer; margin-top: 16px; }
+      .header-links { margin-bottom: 20px; }
+      .header-links a { color: var(--muted); text-decoration: none; font-weight: 500; font-size: 13px; }
+      .header-links a:hover { color: var(--text); }
+      h2 { font-family: var(--font-display); font-weight: 600; font-size: 26px; margin: 0 0 24px; letter-spacing: -0.01em; }
+      .question { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; margin-bottom: 16px; position: relative; }
+      .question::before { content: attr(data-index); position: absolute; top: -10px; left: 18px; background: var(--accent); color: #191305; font-family: var(--font-mono); font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 3px; }
+      input, textarea { width: 100%; padding: 10px 12px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: var(--radius-sm); margin-bottom: 8px; font-family: var(--font-body); font-size: 14px; }
+      input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+      textarea { resize: vertical; min-height: 72px; }
+      button { width: 100%; padding: 14px; background: var(--accent); color: #191305; border: none; border-radius: var(--radius-sm); font-weight: 600; font-family: var(--font-body); font-size: 15px; cursor: pointer; margin-top: 16px; }
       button:hover { background: var(--accent-hover); }
-      label { font-size: 13px; color: var(--muted); display: block; margin-bottom: 4px; margin-top: 8px; }
+      label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); display: block; margin-bottom: 6px; margin-top: 12px; }
       .radio-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px;}
-      .radio-group input[type="radio"] { width: auto; margin: 0; cursor: pointer; }
+      .radio-group input[type="radio"] { width: auto; margin: 0; cursor: pointer; accent-color: var(--correct); }
+      .radio-group input[type="text"] { margin-bottom: 0; }
     </style>
     </head>
     <body>
     <div class="wrap">
-      <h2>Edit Quiz</h2>
+      <div class="header-links"><a href="/">&larr; Back to dashboard</a></div>
+      <h2>Edit quiz</h2>
+      <label>Title</label>
+      <input type="text" id="quiz-title">
       <div id="editor"></div>
-      <button onclick="saveQuiz()">Save & Launch Quiz</button>
+      <button onclick="saveQuiz()">Save changes</button>
     </div>
     <script>
       const quizId = window.location.pathname.split('/').pop();
@@ -85,10 +525,11 @@ def edit_quiz(quiz_id):
       async function load() {
         const res = await fetch(`/api/quiz/${quizId}/raw`);
         quizData = await res.json();
+        document.getElementById('quiz-title').value = quizData.title || '';
         const container = document.getElementById('editor');
         
         quizData.questions.forEach((q, i) => {
-          let html = `<div class="question" id="q-${i}">
+          let html = `<div class="question" id="q-${i}" data-index="Q${i+1}">
             <label>Question ${i+1}</label>
             <textarea class="q-text">${q.question}</textarea>
             <label>Options (Select the correct answer)</label>`;
@@ -127,6 +568,7 @@ def edit_quiz(quiz_id):
         });
 
         quizData.questions = questions;
+        quizData.title = document.getElementById('quiz-title').value;
 
         await fetch(`/api/quiz/${quizId}/update`, {
           method: 'POST',
@@ -134,7 +576,7 @@ def edit_quiz(quiz_id):
           body: JSON.stringify(quizData)
         });
 
-        window.location.href = `/quiz/results?quiz_id=${quizId}`;
+        window.location.href = `/`;
       }
 
       load();
@@ -150,18 +592,35 @@ def raw_quiz(quiz_id):
     if not os.path.exists(filepath):
         return jsonify({"error": "Quiz not found"}), 404
     with open(filepath, 'r', encoding='utf-8') as f:
-        return jsonify(json.loads(f.read()))
+        quiz_data = json.loads(f.read())
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute("SELECT title FROM quizzes WHERE quiz_id = ?", (quiz_id,)).fetchone()
+    quiz_data["title"] = row[0] if row else ""
+    return jsonify(quiz_data)
 
 @app.route('/api/quiz/<quiz_id>/update', methods=['POST'])
+@requires_auth
 def update_quiz(quiz_id):
     filepath = f"quizzes/{quiz_id}.json"
     data = request.json
+    title = data.pop("title", None)
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(data, f, indent=4)
+    if title is not None:
+        with sqlite3.connect(DB_PATH) as conn:
+            conn.execute("UPDATE quizzes SET title = ? WHERE quiz_id = ?", (title, quiz_id))
     return jsonify({"status": "success"})
 
 @app.route('/api/quiz/<quiz_id>/start', methods=['POST'])
 def start_quiz(quiz_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        row = cursor.fetchone()
+        
+    if not row or not row[0]:
+        return jsonify({"error": "This quiz is not currently accepting responses."}), 403
+
     filepath = f"quizzes/{quiz_id}.json"
     if not os.path.exists(filepath):
         return jsonify({"error": "Quiz not found"}), 404
@@ -171,15 +630,20 @@ def start_quiz(quiz_id):
 
     session_token = str(uuid.uuid4())
     seed = random.random()
+
+    bank = quiz_data["questions"]
+    sample = min(10, len(bank))
+    selected_qs = random.Random(seed).sample(bank, sample)
     
     active_sessions[session_token] = {
         "quiz_id": quiz_id,
         "start_timestamp": time.time(),
-        "seed": seed
+        "seed": seed,
+        "question_ids": [q["id"] for q in selected_qs]
     }
 
     client_questions = []
-    for q in quiz_data["questions"]:
+    for q in selected_qs:
         options = q["options"][:]
         random.Random(seed).shuffle(options)
         client_questions.append({
@@ -217,16 +681,19 @@ def submit_quiz(quiz_id):
     start_timestamp = session_data["start_timestamp"]
     time_taken = end_timestamp - start_timestamp
     seed = session_data["seed"]
+    assigned_ids = set(session_data["question_ids"])
 
     filepath = f"quizzes/{quiz_id}.json"
     with open(filepath, 'r', encoding='utf-8') as f:
         quiz_data = json.loads(f.read())
 
     score = 0
-    total = len(quiz_data["questions"])
     results_feedback = []
 
-    for q in quiz_data["questions"]:
+    assigned_qs = [q for q in quiz_data["questions"] if q["id"] in assigned_ids]
+    total = len(assigned_qs)
+
+    for q in assigned_qs:
         q_id = q["id"]
         correct_option = q["options"][q["correct_answer_index"]]
         selected_option = None
@@ -274,7 +741,7 @@ def submit_quiz(quiz_id):
 @requires_auth
 def results_data():
     quiz_id_filter = request.args.get('quiz_id')
-    query = "SELECT name, quiz_id, time_taken, score, passed, answers_submitted FROM results"
+    query = "SELECT id, name, quiz_id, time_taken, score, passed, answers_submitted FROM results"
     params = []
     if quiz_id_filter:
         query += " WHERE quiz_id = ?"
@@ -287,13 +754,14 @@ def results_data():
 
     data = []
     for r in results:
-        name, q_id, time_taken, score, passed, answers_json = r
+        row_id, name, q_id, time_taken, score, passed, answers_json = r
         try:
             total = len(json.loads(answers_json))
         except:
             total = 10
         total = max(total, 1)
         data.append({
+            "id": row_id,
             "name": name,
             "quiz_id": q_id,
             "time_taken": time_taken,
@@ -302,6 +770,17 @@ def results_data():
             "passed": bool(passed)
         })
     return jsonify(data)
+
+@app.route('/api/results/<int:result_id>', methods=['DELETE'])
+@requires_auth
+def delete_result(result_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        conn.execute("DELETE FROM results WHERE id = ?", (result_id,))
+    
+    for q in clients:
+        q.put('update')
+        
+    return jsonify({"status": "success"})
 
 @app.route('/api/results_stream')
 def results_stream():
@@ -325,93 +804,63 @@ def quiz_results():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Quiz Results</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
       :root {
-        --bg: #14161a;
-        --panel: #1c1f26;
-        --border: #2a2e37;
-        --text: #e7e9ec;
-        --muted: #8a8f99;
-        --accent: #5b8def;
-        --correct: #3fae6a;
-        --incorrect: #d1554a;
-        --radius: 6px;
+        --bg: #14161c;
+        --panel: #1c1f27;
+        --panel-raised: #22262f;
+        --border: #2b2f3a;
+        --text: #eae7df;
+        --muted: #82858f;
+        --accent: #c9a24b;
+        --correct: #5fae7a;
+        --correct-dim: rgba(95,174,122,0.14);
+        --incorrect: #d16656;
+        --incorrect-dim: rgba(209,102,86,0.14);
+        --radius: 10px;
+        --font-display: 'Fraunces', Georgia, serif;
+        --font-body: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        --font-mono: 'JetBrains Mono', Menlo, Consolas, monospace;
       }
+      * { box-sizing: border-box; }
       body {
-        margin: 0;
-        background: var(--bg);
-        color: var(--text);
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-        padding: 40px 20px;
+        margin: 0; background: var(--bg); color: var(--text); font-family: var(--font-body); padding: 56px 20px;
+        background-image:
+          linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        background-size: 32px 32px;
       }
-      .container {
-        max-width: 900px;
-        margin: 0 auto;
-      }
-      h1 {
-        font-size: 24px;
-        margin-bottom: 24px;
-        border-bottom: 1px solid var(--border);
-        padding-bottom: 16px;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        background: var(--panel);
-        border-radius: var(--radius);
-        overflow: hidden;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
-      }
-      th, td {
-        padding: 16px;
-        text-align: left;
-        border-bottom: 1px solid var(--border);
-      }
-      th {
-        background: rgba(255, 255, 255, 0.05);
-        font-weight: 600;
-        color: var(--muted);
-        text-transform: uppercase;
-        font-size: 12px;
-        letter-spacing: 0.5px;
-      }
-      tr:last-child td {
-        border-bottom: none;
-      }
-      .badge {
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 12px;
-        font-weight: bold;
-      }
-      .badge.pass { background: rgba(63, 174, 106, 0.2); color: var(--correct); }
-      .badge.fail { background: rgba(209, 85, 74, 0.2); color: var(--incorrect); }
-      .progress-bar-container {
-        width: 100%;
-        height: 8px;
-        background: var(--bg);
-        border-radius: 4px;
-        display: flex;
-        overflow: hidden;
-        margin-top: 8px;
-      }
-      .progress-correct {
-        background: var(--correct);
-        height: 100%;
-      }
-      .progress-incorrect {
-        background: var(--incorrect);
-        height: 100%;
-      }
-      .score-text {
-        font-size: 14px;
-        font-weight: 600;
-      }
+      .container { max-width: 900px; margin: 0 auto; }
+      .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; color: var(--accent); margin: 0 0 6px; display: block; }
+      h1 { font-family: var(--font-display); font-weight: 600; font-size: 32px; margin: 0 0 28px; border-bottom: 1px solid var(--border); padding-bottom: 20px; display: flex; justify-content: space-between; align-items: baseline; letter-spacing: -0.01em; }
+      .header-links a { color: var(--muted); text-decoration: none; font-size: 13px; font-weight: 500; }
+      .header-links a:hover { color: var(--text); }
+      table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
+      th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border); }
+      th { background: rgba(255, 255, 255, 0.03); font-weight: 500; color: var(--muted); text-transform: uppercase; font-size: 11px; letter-spacing: 0.1em; font-family: var(--font-mono); }
+      tr:last-child td { border-bottom: none; }
+      tbody tr:hover { background: var(--panel-raised); }
+      .badge { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; padding: 4px 9px; border-radius: 3px; border: 1.5px dashed currentColor; display: inline-block; transform: rotate(-1.5deg); font-weight: 500; }
+      .badge.pass { background: var(--correct-dim); color: var(--correct); }
+      .badge.fail { background: var(--incorrect-dim); color: var(--incorrect); }
+      .progress-bar-container { width: 100%; height: 6px; background: var(--bg); border-radius: 3px; display: flex; overflow: hidden; margin-top: 8px; }
+      .progress-correct { background: var(--correct); height: 100%; }
+      .progress-incorrect { background: var(--incorrect); height: 100%; }
+      .score-text { font-size: 14px; font-weight: 600; font-family: var(--font-mono); }
+      .delete-btn { background: transparent; color: var(--incorrect); border: 1px solid var(--incorrect-dim); padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: var(--font-body); }
+      .delete-btn:hover { background: var(--incorrect-dim); }
+      .empty-state { text-align: center; padding: 48px 20px; color: var(--muted); font-size: 14px; }
     </style>
     </head>
     <body>
     <div class="container">
-      <h1>Admin Results Dashboard</h1>
+      <h1>
+        <span><span class="eyebrow">Central Quiz</span>Results</span>
+        <span class="header-links"><a href="/">&larr; Back to dashboard</a></span>
+      </h1>
       <table>
         <thead>
           <tr>
@@ -420,6 +869,7 @@ def quiz_results():
             <th>Time Taken</th>
             <th>Score</th>
             <th>Status</th>
+            <th>Actions</th>
           </tr>
         </thead>
         <tbody id="results-body">
@@ -463,10 +913,23 @@ def quiz_results():
                       </div>
                     </td>
                     <td><span class="badge ${statusClass}">${statusText}</span></td>
+                    <td><button class="delete-btn" onclick="deleteResult(${row.id})">Delete</button></td>
                   `;
                   tbody.appendChild(tr);
               });
           } catch (e) {}
+      }
+
+      async function deleteResult(id) {
+          if (!confirm('Are you sure you want to delete this result?')) return;
+          try {
+              const response = await fetch(`/api/results/${id}`, { method: 'DELETE' });
+              if (!response.ok) {
+                  alert('Failed to delete result.');
+              }
+          } catch (e) {
+              console.error(e);
+          }
       }
 
       fetchResults();
@@ -483,10 +946,19 @@ def quiz_results():
     """
     return html
 
-def start(pdf_name, quiz_id):
-    global DB_PATH
-    os.makedirs("database", exist_ok=True)
-    DB_PATH = f"database/{pdf_name}_{quiz_id}.db"
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('10.255.255.255', 1))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = '127.0.0.1'
+    finally:
+        s.close()
+    return ip
+
+if __name__ == "__main__":
     init_db()
-    Timer(1, lambda: webbrowser.open(f"http://127.0.0.1:8080/edit/{quiz_id}")).start()
-    app.run(host='0.0.0.0', port=8080, threaded=True)
+    ip = get_local_ip()
+    print(f"\nAdmin Dashboard: http://{ip}:{PORT}/\n")
+    app.run(host='0.0.0.0', port=PORT, threaded=True)
