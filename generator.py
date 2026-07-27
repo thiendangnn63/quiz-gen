@@ -4,7 +4,7 @@ import time
 from llm_api import call_api
 from pdf_handler import ingest_chapter, clean_json_response
 
-def generate_questions(pdf_path, q_cnt=20):
+def generate_questions(pdf_path, english_level="A2", q_cnt=20, difficulty="Medium"):
     text = ingest_chapter(pdf_path)
     
     generate_prompt = f"""You are an expert educational assessment generator. Generate a {q_cnt} multiple-choice question bank based on the provided text.
@@ -16,8 +16,8 @@ def generate_questions(pdf_path, q_cnt=20):
     4. DO NOT wrap the array in a parent dictionary. The absolute first character of your response must be '[' and the last character must be ']'.
     5. Do not include markdown formatting, conversational text, or explanations outside the JSON.
     6. Ensure exactly 4 distinct options per question.
-    7. Use extremely simple, A2-level English. Write in short, direct sentences using active voice. Strictly avoid idioms, complex grammar, and unnecessary jargon. If a technical term is absolutely required by the text, explain it simply.
-    8. Avoid using analogies wherever necessary.
+    7. Language Constraint: Use {english_level}-level English. Write in short, direct sentences using active voice. Strictly avoid idioms, complex grammar, and unnecessary jargon. If a technical term is required, explain it simply.
+    8. Target Difficulty: {difficulty}. Adjust question depth, distractor plausibility, and complexity accordingly.
 
     Expected Exact Schema:
     [
@@ -40,6 +40,7 @@ def generate_questions(pdf_path, q_cnt=20):
     3. Ensure the 'correct_answer_index' (integer 0-3) accurately points to the right option.
     4. Ensure the 'explanation' is a complete, factually accurate sentence.
     5. Fix any truncated sentences, blank strings, or missing fields.
+    6. Ensure language strictly adheres to {english_level}-level English and difficulty is calibrated to {difficulty}.
 
     CRITICAL INSTRUCTIONS: 
     - You MUST return ONLY a valid JSON array of {q_cnt} objects. 
@@ -66,15 +67,21 @@ def generate_questions(pdf_path, q_cnt=20):
     for _ in range(3):
         try:
             draft_response = call_api(generate_prompt, response_json=False)
-            review_prompt = review_prompt_template.format(q_cnt=q_cnt, text=text, draft_json=draft_response)
+            review_prompt = review_prompt_template.format(
+                q_cnt=q_cnt, 
+                english_level=english_level, 
+                difficulty=difficulty, 
+                text=text, 
+                draft_json=draft_response
+            )
             final_response = call_api(review_prompt, response_json=False)
             
-            questions = json.loads(clean_json_response(final_response))
+            parsed_questions = json.loads(clean_json_response(final_response))
             
-            if len(questions) != q_cnt:
-                raise ValueError(f"Must have exactly {questions} questions.")
+            if len(parsed_questions) != q_cnt:
+                raise ValueError(f"Must have exactly {q_cnt} questions.")
                 
-            return questions
+            return parsed_questions
         except Exception:
             continue
             

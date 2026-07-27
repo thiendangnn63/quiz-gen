@@ -69,9 +69,14 @@ def requires_auth(f):
         return f(*args, **kwargs)
     return decorated
 
-def process_pdf(filepath, quiz_id):
+def process_pdf(filepath, quiz_id, english_level="A2", q_cnt=20, difficulty="Medium"):
     try:
-        questions = generator.generate_questions(filepath)
+        questions = generator.generate_questions(
+            filepath, 
+            english_level=english_level, 
+            q_cnt=q_cnt, 
+            difficulty=difficulty
+        )
         
         for i, q in enumerate(questions):
             q["id"] = f"q{i}"
@@ -137,6 +142,14 @@ def dashboard():
       button { padding: 10px 18px; background: var(--accent); color: #191305; border: none; border-radius: var(--radius-sm); font-weight: 600; font-family: var(--font-body); cursor: pointer; transition: background 0.15s ease; }
       button:hover { background: var(--accent-hover); }
       button:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
+      .config-toggle-btn { background: var(--panel-raised); color: var(--text); border: 1px solid var(--border); margin-top: 14px; display: inline-flex; align-items: center; gap: 6px; }
+      .config-toggle-btn:hover { background: var(--border); }
+      .config-panel { display: none; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border); }
+      .config-panel.open { display: grid; }
+      .config-group { display: flex; flex-direction: column; gap: 6px; }
+      .config-group label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+      .config-group select, .config-group input { background: var(--bg); border: 1px solid var(--border); color: var(--text); padding: 8px 12px; border-radius: var(--radius-sm); font-family: var(--font-body); font-size: 13px; }
+      .config-group select:focus, .config-group input:focus { outline: none; border-color: var(--accent); }
       table { width: 100%; border-collapse: collapse; background: var(--panel); border-radius: var(--radius); overflow: hidden; border: 1px solid var(--border); }
       th, td { padding: 16px; text-align: left; border-bottom: 1px solid var(--border); }
       tr:last-child td { border-bottom: none; }
@@ -161,6 +174,36 @@ def dashboard():
             <input type="file" id="pdf-file" accept=".pdf" required>
             <button type="submit" id="upload-btn">Upload &amp; generate</button>
           </div>
+          <div>
+            <button type="button" class="config-toggle-btn" id="config-toggle">
+              ⚙ Config Options
+            </button>
+          </div>
+          <div class="config-panel" id="config-panel">
+            <div class="config-group">
+              <label for="english-level">English Level</label>
+              <select id="english-level">
+                <option value="A1">A1 (Beginner)</option>
+                <option value="A2" selected>A2 (Elementary)</option>
+                <option value="B1">B1 (Intermediate)</option>
+                <option value="B2">B2 (Upper Intermediate)</option>
+                <option value="C1">C1 (Advanced)</option>
+                <option value="C2">C2 (Proficient)</option>
+              </select>
+            </div>
+            <div class="config-group">
+              <label for="q-cnt">Question Bank Count</label>
+              <input type="number" id="q-cnt" value="20" min="5" max="50">
+            </div>
+            <div class="config-group">
+              <label for="difficulty">Question Difficulty</label>
+              <select id="difficulty">
+                <option value="Easy">Easy</option>
+                <option value="Medium" selected>Medium</option>
+                <option value="Hard">Hard</option>
+              </select>
+            </div>
+          </div>
         </form>
         <div id="upload-status" style="margin-top: 12px; font-size: 13px; color: var(--muted); font-family: var(--font-mono);"></div>
       </div>
@@ -182,6 +225,12 @@ def dashboard():
       const uploadBtn = document.getElementById('upload-btn');
       const uploadStatus = document.getElementById('upload-status');
       const quizList = document.getElementById('quiz-list');
+      const configToggle = document.getElementById('config-toggle');
+      const configPanel = document.getElementById('config-panel');
+
+      configToggle.addEventListener('click', () => {
+          configPanel.classList.toggle('open');
+      });
 
       uploadForm.addEventListener('submit', async (e) => {
           e.preventDefault();
@@ -193,6 +242,9 @@ def dashboard():
 
           const formData = new FormData();
           formData.append('file', fileInput.files[0]);
+          formData.append('english_level', document.getElementById('english-level').value);
+          formData.append('q_cnt', document.getElementById('q-cnt').value);
+          formData.append('difficulty', document.getElementById('difficulty').value);
 
           try {
               const res = await fetch('/api/upload', { method: 'POST', body: formData });
@@ -222,7 +274,7 @@ def dashboard():
                     <a href="/quiz/results?quiz_id=${q.quiz_id}">Results</a>
                   `;
               }
-              actions += `<a href="#" onclick="deleteQuiz('${q.quiz_id}', '${q.title}')" style="color: #d1554a;">Delete</a>`;
+              actions += `<a href="#" onclick="deleteQuiz('${q.quiz_id}')" style="color: #d1554a;">Delete</a>`;
               const tr = document.createElement('tr');
               tr.innerHTML = `
                 <td>${q.title}</td>
@@ -236,10 +288,10 @@ def dashboard():
 
       fetchQuizzes();
       
-      async function deleteQuiz(quizId, title) {
+      async function deleteQuiz(quizId) {
           if (!confirm('Are you sure you want to delete this quiz and all its results? This cannot be undone.')) return;
           try {
-              const response = await fetch(`/api/quizzes/${quizId}/${title}`, { method: 'DELETE' });
+              const response = await fetch(`/api/quizzes/${quizId}`, { method: 'DELETE' });
               if (!response.ok) {
                   alert('Failed to delete quiz.');
               }
@@ -278,7 +330,7 @@ def toggle_quiz(quiz_id):
         
     return jsonify({"status": "success", "is_active": active_status})
 
-@app.route('/api/quizzes/<quiz_id>/<title>', methods=['DELETE'])
+@app.route('/api/quizzes/<quiz_id>', methods=['DELETE'])
 @requires_auth
 def delete_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
@@ -308,6 +360,13 @@ def upload_file():
     file = request.files['file']
     if file.filename == '':
         return jsonify({"error": "Empty filename"}), 400
+
+    english_level = request.form.get('english_level', 'A2')
+    try:
+        q_cnt = int(request.form.get('q_cnt', 20))
+    except ValueError:
+        q_cnt = 20
+    difficulty = request.form.get('difficulty', 'Medium')
         
     filename = secure_filename(file.filename)
     quiz_id = hashlib.sha256(f"{filename}_{time.time()}".encode()).hexdigest()[:16]
@@ -322,7 +381,11 @@ def upload_file():
     for q in dashboard_clients:
         q.put('update')
         
-    threading.Thread(target=process_pdf, args=(filepath, quiz_id)).start()
+    threading.Thread(
+        target=process_pdf, 
+        args=(filepath, quiz_id), 
+        kwargs={'english_level': english_level, 'q_cnt': q_cnt, 'difficulty': difficulty}
+    ).start()
     
     return jsonify({"status": "success", "quiz_id": quiz_id})
 
@@ -718,7 +781,7 @@ def submit_quiz(quiz_id):
             "explanation": q["explanation"]
         })
 
-    passed = score >= 8
+    passed = score >= int(total * 0.8)
 
     with sqlite3.connect(DB_PATH) as conn:
         conn.execute("""
