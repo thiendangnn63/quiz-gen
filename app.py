@@ -1,3 +1,6 @@
+# nohup python3 app.py > flask.log 2>&1 &
+# pkill -f "python3 app.py"
+
 import os
 import json
 import sqlite3
@@ -16,9 +19,9 @@ import qr_generator
 
 app = Flask(__name__)
 DB_PATH = "central_quiz.db"
-ADMIN_USERNAME = "admin"
-ADMIN_PASSWORD = "password"
-PORT = 8080
+ADMIN_USERNAME = "septhang"
+ADMIN_PASSWORD = "autonxtquiz"
+PORT = 5000
 
 active_sessions = {}
 clients = []
@@ -576,10 +579,13 @@ def edit_quiz(quiz_id):
     <div class="wrap">
       <div class="header-links"><a href="/">&larr; Back to dashboard</a></div>
       <h2>Edit quiz</h2>
+      <div id="active-warning" style="display:none; background: var(--incorrect-dim, rgba(209,102,86,0.14)); color: var(--incorrect); border: 1px solid var(--incorrect); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 20px; font-size: 13px;">
+        This quiz session is currently active. Close it from the dashboard before editing, or in-progress attempts may be graded incorrectly.
+      </div>
       <label>Title</label>
       <input type="text" id="quiz-title">
       <div id="editor"></div>
-      <button onclick="saveQuiz()">Save changes</button>
+      <button id="save-btn" onclick="saveQuiz()">Save changes</button>
     </div>
     <script>
       const quizId = window.location.pathname.split('/').pop();
@@ -588,6 +594,10 @@ def edit_quiz(quiz_id):
       async function load() {
         const res = await fetch(`/api/quiz/${quizId}/raw`);
         quizData = await res.json();
+        if (quizData.is_active) {
+          document.getElementById('active-warning').style.display = 'block';
+          document.getElementById('save-btn').disabled = true;
+        }
         document.getElementById('quiz-title').value = quizData.title || '';
         const container = document.getElementById('editor');
         
@@ -633,11 +643,17 @@ def edit_quiz(quiz_id):
         quizData.questions = questions;
         quizData.title = document.getElementById('quiz-title').value;
 
-        await fetch(`/api/quiz/${quizId}/update`, {
+        const res = await fetch(`/api/quiz/${quizId}/update`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(quizData)
         });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          alert(err.error || 'Failed to save changes.');
+          return;
+        }
 
         window.location.href = `/`;
       }
@@ -657,13 +673,19 @@ def raw_quiz(quiz_id):
     with open(filepath, 'r', encoding='utf-8') as f:
         quiz_data = json.loads(f.read())
     with sqlite3.connect(DB_PATH) as conn:
-        row = conn.execute("SELECT title FROM quizzes WHERE quiz_id = ?", (quiz_id,)).fetchone()
+        row = conn.execute("SELECT title, is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,)).fetchone()
     quiz_data["title"] = row[0] if row else ""
+    quiz_data["is_active"] = bool(row[1]) if row else False
     return jsonify(quiz_data)
 
 @app.route('/api/quiz/<quiz_id>/update', methods=['POST'])
 @requires_auth
 def update_quiz(quiz_id):
+    with sqlite3.connect(DB_PATH) as conn:
+        row = conn.execute("SELECT is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,)).fetchone()
+    if row and row[0]:
+        return jsonify({"error": "Close the session before editing this quiz."}), 409
+
     filepath = f"quizzes/{quiz_id}.json"
     data = request.json
     title = data.pop("title", None)
@@ -708,7 +730,7 @@ def start_quiz(quiz_id):
     client_questions = []
     for q in selected_qs:
         options = q["options"][:]
-        random.Random(seed).shuffle(options)
+        random.Random(f"{seed}_{q['id']}").shuffle(options)
         client_questions.append({
             "id": q["id"],
             "text": q["question"],
@@ -765,7 +787,7 @@ def submit_quiz(quiz_id):
         if q_id in answers and answers[q_id] is not None:
             client_idx = answers[q_id]
             options = q["options"][:]
-            random.Random(seed).shuffle(options)
+            random.Random(f"{seed}_{q_id}").shuffle(options)
             selected_option = options[client_idx]
             
             if selected_option == correct_option:
