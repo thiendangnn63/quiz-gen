@@ -11,7 +11,6 @@ Output must be a JSON object containing a single key `"questions"` which holds a
   "questions": [
     {{
       "question": "string",
-      "distractor_rationale": "string",
       "options": ["string", "string", "string", "string"],
       "correct_answer_index": 0,
       "explanation": "string"
@@ -24,7 +23,6 @@ Formatting requirements, always:
 - The absolute first character of your response must be `{{` and the last character must be `}}`.
 - No markdown formatting, conversational text, or explanation outside the JSON itself.
 - Exactly 4 distinct options per question.
-- **CRITICAL:** You must generate the `distractor_rationale` field FIRST, immediately after the question. Use it to explicitly justify how your 3 upcoming distractors successfully avoid the 5 failure modes BEFORE you generate the `"options"` array.
 
 ## Content Rules
 
@@ -45,6 +43,8 @@ Every distractor (the 3 wrong options) must be indistinguishable from the correc
 
 A correct distractor must remain factually wrong, but should read as something a person who misunderstood the text might genuinely believe — same level of detail, same sentence structure, same confident tone as the correct answer.
 
+A question is acceptable if at least 2 of the 3 distractors pass every check above. A single weak or imperfect distractor does not require rewriting the whole question — only rewrite a distractor if it fails a check, not the other two that already pass.
+
 ## Worked Examples
 
 **Good (short options, all similar length, distractors topically relevant, valid rationale before options):**
@@ -53,7 +53,6 @@ A correct distractor must remain factually wrong, but should read as something a
   "questions": [
     {{
       "question": "A car receives a new feature without a shop visit. What made this possible?",
-      "distractor_rationale": "The distractors represent plausible but incorrect physical updates (engine part, sensor) or manual processes (dealership install), matching the correct answer's specific and concise tone without using vague filler.",
       "options": ["A new engine part", "A dealership install", "A wireless software update", "A replaced sensor"],
       "correct_answer_index": 2,
       "explanation": "Over-the-Air updates let vehicles receive new features remotely, without physical service visits."
@@ -68,7 +67,6 @@ A correct distractor must remain factually wrong, but should read as something a
   "questions": [
     {{
       "question": "A car receives a new feature without a shop visit. What made this possible?",
-      "distractor_rationale": "I will use random vehicle attributes.",
       "options": ["Better tires", "New paint", "The manufacturer's proprietary wireless Over-the-Air update system delivering the feature remotely", "A cheaper battery"],
       "correct_answer_index": 2,
       "explanation": "..."
@@ -83,7 +81,6 @@ A correct distractor must remain factually wrong, but should read as something a
   "questions": [
     {{
       "question": "Why do engineers separate the SDV software stack into distinct layers?",
-      "distractor_rationale": "The distractors offer specific, plausible but incorrect reasons for separation (paint scheduling, safety inspections, hard drive storage) matching the correct answer's length and detailed technical tone.",
       "options": [
           "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently",
           "Because separating layers allows the exterior paint process to be scheduled on a different factory line",
@@ -103,7 +100,6 @@ A correct distractor must remain factually wrong, but should read as something a
   "questions": [
     {{
       "question": "Why do engineers separate the SDV software stack into distinct layers?",
-      "distractor_rationale": "I will use short reasons to save space.",
       "options": ["For paint scheduling", "For inspections", "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently", "For hard drive storage"],
       "correct_answer_index": 2,
       "explanation": "..."
@@ -121,7 +117,6 @@ These are real questions from a past run that hit the quality bar. Distractors a
   "questions": [
     {{
       "question": "What does a standard API help developers do?",
-      "distractor_rationale": "Distractors offer plausible but incorrect software/network functions.",
       "options": [
           "Write one program that works across many different cars.",
           "Store individual driver preference profiles on local storage drives.",
@@ -140,7 +135,6 @@ These are real questions from a past run that hit the quality bar. Distractors a
   "questions": [
     {{
       "question": "What does cloud native software help companies do?",
-      "distractor_rationale": "Distractors propose alternative plausible architectural functions.",
       "options": [
           "Scale their services rapidly and handle massive user traffic.",
           "Store private user data permanently on local dashboard drives.",

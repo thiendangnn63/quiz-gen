@@ -92,9 +92,14 @@ You MUST return ONLY a valid JSON object with a single `questions` key containin
             )
             reviewed_response = call_api(review_prompt, response_json=True, temperature=0.2, enable_thinking=True)
             
-            # Extract the 'questions' array from the parent object
+            # Extract the 'questions' array from the parent object. If the model ignored
+            # the wrapper instruction and returned a bare array instead, treat that array
+            # as the questions directly rather than letting .get() fail on a list.
             reviewed_data = json.loads(clean_json_response(reviewed_response))
-            reviewed_questions = reviewed_data.get("questions", reviewed_data)
+            if isinstance(reviewed_data, dict):
+                reviewed_questions = reviewed_data.get("questions", reviewed_data)
+            else:
+                reviewed_questions = reviewed_data
             validate_structure(reviewed_questions, q_cnt)
 
             plausibility_prompt = plausibility_prompt_template.format(
@@ -105,9 +110,13 @@ You MUST return ONLY a valid JSON object with a single `questions` key containin
             )
             plausibility_response = call_api(plausibility_prompt, response_json=True, temperature=0.2, enable_thinking=True)
             
-            # Extract the 'questions' array from the parent object
+            # Extract the 'questions' array from the parent object. Same guard as above —
+            # fall back to treating the response as the array itself if it isn't a dict.
             final_data = json.loads(clean_json_response(plausibility_response))
-            final_questions = final_data.get("questions", final_data)
+            if isinstance(final_data, dict):
+                final_questions = final_data.get("questions", final_data)
+            else:
+                final_questions = final_data
             validate_structure(final_questions, q_cnt)
 
             # Stage 3 can rebalance option length, so re-check after it runs, not before.
