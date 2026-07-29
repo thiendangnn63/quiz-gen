@@ -14,11 +14,11 @@ import hashlib
 from functools import wraps
 from flask import Flask, request, jsonify, render_template_string, Response, send_from_directory
 from werkzeug.utils import secure_filename
-import generator
-import qr_generator
+import src.generator as generator
+import src.qr_generator as qr_generator
 
 app = Flask(__name__)
-DB_PATH = "central_quiz.db"
+DB_PATH = "tools/central_quiz.db"
 ADMIN_USERNAME = "septhang"
 ADMIN_PASSWORD = "autonxtquiz"
 PORT = 5000
@@ -559,7 +559,7 @@ def serve_qr(filename):
 
 @app.route('/quiz')
 def serve_quiz():
-    with open('quiz_template.html', 'r', encoding='utf-8') as f:
+    with open('tools/quiz_template.html', 'r', encoding='utf-8') as f:
         return render_template_string(f.read())
 
 @app.route('/edit/<quiz_id>')

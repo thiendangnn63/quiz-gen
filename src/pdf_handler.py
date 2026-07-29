@@ -3,7 +3,7 @@ import json
 import re
 from pypdf import PdfReader, PdfWriter
 from json_repair import repair_json
-from llm_api import call_api
+from src.llm_api import call_api
 
 def clean_json_response(raw_text):
     match = re.search(r'```(?:json)?(.*?)```', raw_text, re.DOTALL | re.IGNORECASE)
@@ -60,7 +60,7 @@ def get_chapter_ranges(text):
 
         {text}
         """
-        
+
         raw_response = call_api(prompt, response_json=True, temperature=0.1, enable_thinking=True)
         parsed = json.loads(clean_json_response(raw_response))
 

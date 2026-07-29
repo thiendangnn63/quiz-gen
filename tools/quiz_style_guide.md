@@ -4,23 +4,26 @@ This document defines the quality bar for every multiple-choice question in this
 
 ## Output Schema
 
-Output is always a bare JSON array — never wrapped in a parent object — of objects matching this exact schema:
+Output is always a bare JSON array — never wrapped in a parent object like `{"quiz_id": "...", "questions": [...]}` — of objects matching this exact schema:
 
 ```json
 [
-  {{
+  {
     "question": "string",
     "options": ["string", "string", "string", "string"],
     "correct_answer_index": 0,
-    "explanation": "string"
-  }}
+    "explanation": "string",
+    "distractor_rationale": "string"
+  }
 ]
 ```
 
 Formatting requirements, always:
 - The absolute first character of your response must be `[` and the last character must be `]`.
+- DO NOT wrap the output in a parent object. Output the bare array only.
 - No markdown formatting, conversational text, or explanation outside the JSON itself.
 - Exactly 4 distinct options per question.
+- Use the `distractor_rationale` field to explicitly justify how your 3 distractors successfully avoid the 5 failure modes before generating the final text.
 
 ## Content Rules
 
@@ -88,16 +91,91 @@ A correct distractor must remain factually wrong, but should read as something a
 }}
 ```
 
-**Failure mode 1 — topic mismatch:**
-Question: "What function does the cloud layer manage in connected vehicles?"
-Bad distractors: "The physical feel of the steering wheel", "The internal pressure of engine oil", "The tint level of window glass"
-Fixed distractors (same subsystem, still wrong): "The infotainment touchscreen's local display rendering", "The dealership's in-person diagnostic scan tool", "The driver's manual firmware installation via USB"
+## Real Strong Examples
 
-**Failure modes 2-4 — vague hedging, lazy negation, mismatched register:**
-Question: "How does the cloud layer support connected vehicles?"
-Correct: "It securely delivers and monitors software updates across the vehicle fleet."
-Bad: "It handles some vehicle-related data tasks in the background." (vague hedging) / "It does not deliver updates to the vehicle." (lazy negation) / "Various connectivity functions." (mismatched register — a fragment next to a full sentence)
-Fixed: "It streams live diagnostic video from onboard cameras to the service center." / "It stores driver profile settings locally and never syncs them to a server." / "It manages licensing fees for in-car infotainment subscriptions."
+These are real questions from a past run that hit the quality bar. Distractors are sharp, specific, and each proposes a genuine (wrong) answer to the exact question asked — not an adjacent true fact. Match this level of rigor.
+
+```json
+{{
+    "question": "What does a standard API help developers do?",
+    "options": [
+        "Write one program that works across many different cars.",
+        "Store individual driver preference profiles on local storage drives.",
+        "Bypass security protocols to access restricted engine telemetry.",
+        "Translate legacy database records into modern cloud network formats."
+    ],
+    "correct_answer_index": 0,
+    "explanation": "Standard APIs give developers a clear, common way to talk to different car systems, so they can code once and share the app."
+}}
+```
+
+```json
+{{
+    "question": "What does cloud native software help companies do?",
+    "options": [
+        "Scale their services rapidly and handle massive user traffic.",
+        "Store private user data permanently on local dashboard drives.",
+        "Bypass governmental safety regulations during system software updates.",
+        "Restrict network bandwidth to prioritize essential background driving functions."
+    ],
+    "correct_answer_index": 0,
+    "explanation": "Cloud native uses internet computing rules to let software grow quickly, handle heavy traffic, and stay stable during changes."
+}}
+```
+
+```json
+{{
+    "question": "What does the Linux kernel example show us?",
+    "options": [
+        "A single shared code base can power vastly different devices.",
+        "Strict corporate secrecy is required to build reliable operating systems.",
+        "Open source software is too insecure for complex modern hardware.",
+        "Automotive companies must build custom operating systems for every model."
+    ],
+    "correct_answer_index": 0,
+    "explanation": "The Linux kernel runs on everything from TVs to servers, proving that shared technology reduces work for all makers."
+}}
+```
+
+```json
+{{
+    "question": "Why do car makers want unified APIs across models?",
+    "options": [
+        "So developers can write one app that works on every car.",
+        "So dealerships can permanently lock vehicles to specific regional networks.",
+        "So engineers can force users to download proprietary dashboard themes.",
+        "So administrators can track real-time vehicle locations for marketing campaigns."
+    ],
+    "correct_answer_index": 0,
+    "explanation": "A single set of rules helps makers keep their products steady, so developers can create apps that work everywhere."
+}}
+```
+
+```json
+{{
+    "question": "What does the Eclipse SDV group aim to build?",
+    "options": [
+        "A shared foundational software base that any vehicle manufacturer can use.",
+        "A private communication network restricted to premium luxury car brands.",
+        "A closed marketplace where developers must pay high fees to publish.",
+        "A strict set of corporate regulations for autonomous driving safety compliance."
+    ],
+    "correct_answer_index": 0,
+    "explanation": "This open group creates a shared software base for cars, which helps programmers build new vehicle tools faster together."
+}}
+```
+
+**Failure mode 1 — topic mismatch (App Store example):**
+Question: "What is the main job of a car app store for users?"
+Correct: "It gathers many tools in one place for easy user downloads."
+Bad (drifts into unrelated vehicle hardware): "It monitors tire pressure and alerts the driver when inflation drops."
+Fixed (still wrong, but topically relevant): "It manages the financial transactions for dealership hardware upgrades."
+
+**Failure modes 2-4 — lazy negation (Shared Rules example):**
+Question: "Why do experts say car companies should share basic software rules?"
+Correct: "It lets data move easily between cars, services, and people."
+Bad (lazy negation): "It restricts data exchange to prevent seamless communication between systems."
+Fixed (proposes a genuine alternative motive): "It forces competitors to pay licensing fees to use public cloud infrastructure."
 
 **Failure mode 5 — generic hardware filler (a real failure from a past run):**
 Question: "What is the main job of the cloud layer in an SDV?"
