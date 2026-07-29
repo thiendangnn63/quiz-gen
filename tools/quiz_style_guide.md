@@ -4,26 +4,27 @@ This document defines the quality bar for every multiple-choice question in this
 
 ## Output Schema
 
-Output is always a bare JSON array — never wrapped in a parent object like `{{"quiz_id": "...", "questions": [...]}}` — of objects matching this exact schema:
+Output must be a JSON object containing a single key `"questions"` which holds an array of objects matching this exact schema:
 
 ```json
-[
-  {{
-    "question": "string",
-    "options": ["string", "string", "string", "string"],
-    "correct_answer_index": 0,
-    "explanation": "string",
-    "distractor_rationale": "string"
-  }}
-]
+{{
+  "questions": [
+    {{
+      "question": "string",
+      "distractor_rationale": "string",
+      "options": ["string", "string", "string", "string"],
+      "correct_answer_index": 0,
+      "explanation": "string"
+    }}
+  ]
+}}
 ```
 
 Formatting requirements, always:
-- The absolute first character of your response must be `[` and the last character must be `]`.
-- DO NOT wrap the output in a parent object. Output the bare array only.
+- The absolute first character of your response must be `{{` and the last character must be `}}`.
 - No markdown formatting, conversational text, or explanation outside the JSON itself.
 - Exactly 4 distinct options per question.
-- Use the `distractor_rationale` field to explicitly justify how your 3 distractors successfully avoid the 5 failure modes before generating the final text.
+- **CRITICAL:** You must generate the `distractor_rationale` field FIRST, immediately after the question. Use it to explicitly justify how your 3 upcoming distractors successfully avoid the 5 failure modes BEFORE you generate the `"options"` array.
 
 ## Content Rules
 
@@ -46,48 +47,68 @@ A correct distractor must remain factually wrong, but should read as something a
 
 ## Worked Examples
 
-**Good (short options, all similar length, distractors topically relevant):**
+**Good (short options, all similar length, distractors topically relevant, valid rationale before options):**
 ```json
 {{
-    "question": "A car receives a new feature without a shop visit. What made this possible?",
-    "options": ["A new engine part", "A dealership install", "A wireless software update", "A replaced sensor"],
-    "correct_answer_index": 2,
-    "explanation": "Over-the-Air updates let vehicles receive new features remotely, without physical service visits."
+  "questions": [
+    {{
+      "question": "A car receives a new feature without a shop visit. What made this possible?",
+      "distractor_rationale": "The distractors represent plausible but incorrect physical updates (engine part, sensor) or manual processes (dealership install), matching the correct answer's specific and concise tone without using vague filler.",
+      "options": ["A new engine part", "A dealership install", "A wireless software update", "A replaced sensor"],
+      "correct_answer_index": 2,
+      "explanation": "Over-the-Air updates let vehicles receive new features remotely, without physical service visits."
+    }}
+  ]
 }}
 ```
 
 **Bad — avoid (correct answer is the longest and most specific, distractors are short, vague, or unrelated):**
 ```json
 {{
-    "question": "A car receives a new feature without a shop visit. What made this possible?",
-    "options": ["Better tires", "New paint", "The manufacturer's proprietary wireless Over-the-Air update system delivering the feature remotely", "A cheaper battery"],
-    "correct_answer_index": 2,
-    "explanation": "..."
+  "questions": [
+    {{
+      "question": "A car receives a new feature without a shop visit. What made this possible?",
+      "distractor_rationale": "I will use random vehicle attributes.",
+      "options": ["Better tires", "New paint", "The manufacturer's proprietary wireless Over-the-Air update system delivering the feature remotely", "A cheaper battery"],
+      "correct_answer_index": 2,
+      "explanation": "..."
+    }}
+  ]
 }}
 ```
 
 **Good (options are all long and detailed — length alone does not signal which one is correct):**
 ```json
 {{
-    "question": "Why do engineers separate the SDV software stack into distinct layers?",
-    "options": [
-        "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently",
-        "Because separating layers allows the exterior paint process to be scheduled on a different factory line",
-        "Because government safety inspectors require every vehicle subsystem to be certified by a different regional office",
-        "Because dealership technicians need each layer stored on a separate physical hard drive during servicing"
-    ],
-    "correct_answer_index": 0,
-    "explanation": "Each layer in the SDV stack carries distinct ownership, release rhythms, and risk profiles, so clear architectural boundaries are needed for safe, independent updates."
+  "questions": [
+    {{
+      "question": "Why do engineers separate the SDV software stack into distinct layers?",
+      "distractor_rationale": "The distractors offer specific, plausible but incorrect reasons for separation (paint scheduling, safety inspections, hard drive storage) matching the correct answer's length and detailed technical tone.",
+      "options": [
+          "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently",
+          "Because separating layers allows the exterior paint process to be scheduled on a different factory line",
+          "Because government safety inspectors require every vehicle subsystem to be certified by a different regional office",
+          "Because dealership technicians need each layer stored on a separate physical hard drive during servicing"
+      ],
+      "correct_answer_index": 0,
+      "explanation": "Each layer in the SDV stack carries distinct ownership, release rhythms, and risk profiles, so clear architectural boundaries are needed for safe, independent updates."
+    }}
+  ]
 }}
 ```
 
 **Bad — avoid (distractors are short and terse while the correct answer is the only detailed one — same problem as above, reversed):**
 ```json
 {{
-    "question": "Why do engineers separate the SDV software stack into distinct layers?",
-    "options": ["For paint scheduling", "For inspections", "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently", "For hard drive storage"],
-    "correct_answer_index": 2,
-    "explanation": "..."
+  "questions": [
+    {{
+      "question": "Why do engineers separate the SDV software stack into distinct layers?",
+      "distractor_rationale": "I will use short reasons to save space.",
+      "options": ["For paint scheduling", "For inspections", "Because each layer has its own release schedule, ownership, and level of risk that must be managed independently", "For hard drive storage"],
+      "correct_answer_index": 2,
+      "explanation": "..."
+    }}
+  ]
 }}
 ```
 
@@ -97,71 +118,39 @@ These are real questions from a past run that hit the quality bar. Distractors a
 
 ```json
 {{
-    "question": "What does a standard API help developers do?",
-    "options": [
-        "Write one program that works across many different cars.",
-        "Store individual driver preference profiles on local storage drives.",
-        "Bypass security protocols to access restricted engine telemetry.",
-        "Translate legacy database records into modern cloud network formats."
-    ],
-    "correct_answer_index": 0,
-    "explanation": "Standard APIs give developers a clear, common way to talk to different car systems, so they can code once and share the app."
+  "questions": [
+    {{
+      "question": "What does a standard API help developers do?",
+      "distractor_rationale": "Distractors offer plausible but incorrect software/network functions.",
+      "options": [
+          "Write one program that works across many different cars.",
+          "Store individual driver preference profiles on local storage drives.",
+          "Bypass security protocols to access restricted engine telemetry.",
+          "Translate legacy database records into modern cloud network formats."
+      ],
+      "correct_answer_index": 0,
+      "explanation": "Standard APIs give developers a clear, common way to talk to different car systems, so they can code once and share the app."
+    }}
+  ]
 }}
 ```
 
 ```json
 {{
-    "question": "What does cloud native software help companies do?",
-    "options": [
-        "Scale their services rapidly and handle massive user traffic.",
-        "Store private user data permanently on local dashboard drives.",
-        "Bypass governmental safety regulations during system software updates.",
-        "Restrict network bandwidth to prioritize essential background driving functions."
-    ],
-    "correct_answer_index": 0,
-    "explanation": "Cloud native uses internet computing rules to let software grow quickly, handle heavy traffic, and stay stable during changes."
-}}
-```
-
-```json
-{{
-    "question": "What does the Linux kernel example show us?",
-    "options": [
-        "A single shared code base can power vastly different devices.",
-        "Strict corporate secrecy is required to build reliable operating systems.",
-        "Open source software is too insecure for complex modern hardware.",
-        "Automotive companies must build custom operating systems for every model."
-    ],
-    "correct_answer_index": 0,
-    "explanation": "The Linux kernel runs on everything from TVs to servers, proving that shared technology reduces work for all makers."
-}}
-```
-
-```json
-{{
-    "question": "Why do car makers want unified APIs across models?",
-    "options": [
-        "So developers can write one app that works on every car.",
-        "So dealerships can permanently lock vehicles to specific regional networks.",
-        "So engineers can force users to download proprietary dashboard themes.",
-        "So administrators can track real-time vehicle locations for marketing campaigns."
-    ],
-    "correct_answer_index": 0,
-    "explanation": "A single set of rules helps makers keep their products steady, so developers can create apps that work everywhere."
-}}
-```
-
-```json
-{{
-    "question": "What does the Eclipse SDV group aim to build?",
-    "options": [
-        "A shared foundational software base that any vehicle manufacturer can use.",
-        "A private communication network restricted to premium luxury car brands.",
-        "A closed marketplace where developers must pay high fees to publish.",
-        "A strict set of corporate regulations for autonomous driving safety compliance."
-    ],
-    "correct_answer_index": 0,
-    "explanation": "This open group creates a shared software base for cars, which helps programmers build new vehicle tools faster together."
+  "questions": [
+    {{
+      "question": "What does cloud native software help companies do?",
+      "distractor_rationale": "Distractors propose alternative plausible architectural functions.",
+      "options": [
+          "Scale their services rapidly and handle massive user traffic.",
+          "Store private user data permanently on local dashboard drives.",
+          "Bypass governmental safety regulations during system software updates.",
+          "Restrict network bandwidth to prioritize essential background driving functions."
+      ],
+      "correct_answer_index": 0,
+      "explanation": "Cloud native uses internet computing rules to let software grow quickly, handle heavy traffic, and stay stable during changes."
+    }}
+  ]
 }}
 ```
 

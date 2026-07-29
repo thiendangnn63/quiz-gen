@@ -5,7 +5,7 @@ client = OpenAI(
     api_key="ollama"
 )
 
-def call_api(contents, response_json=False):
+def call_api(contents, response_json=False, temperature=0.7, enable_thinking=True, **kwargs):
     try:
         messages = [{"role": "system", "content": "RETURN ALL ANSWERS IN ENGLISH."}]
         
@@ -14,16 +14,16 @@ def call_api(contents, response_json=False):
         else:
             messages.append({"role": "user", "content": contents})
 
-        kwargs = {
+        api_kwargs = {
             "model": "qwen3.6-35b",
-            #"model" : "gpt-4.1",
-            "messages": messages
+            "messages": messages,
+            "temperature": temperature
         }
         
         if response_json:
-            kwargs["response_format"] = {"type": "json_object"}
+            api_kwargs["response_format"] = {"type": "json_object"}
 
-        response = client.chat.completions.create(**kwargs)
+        response = client.chat.completions.create(**api_kwargs)
         return response.choices[0].message.content
     except Exception as e:
         error_msg = str(e)

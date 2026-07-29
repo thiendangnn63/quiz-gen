@@ -31,7 +31,7 @@ Generate exactly {q_cnt} new multiple-choice questions from the text below. Foll
 
 You are reviewing draft questions against the style guide above and the original text below. Fix any violations: factual inaccuracies, incomplete or truncated fields, an incorrect `correct_answer_index`, or option-length imbalance. Do not touch distractor plausibility here — that is handled in a separate pass.
 
-You MUST return ONLY a valid JSON array of {q_cnt} objects, matching the schema in the style guide above. Preserve every `id` field exactly as given if present.
+You MUST return ONLY a valid JSON object with a single `questions` key containing an array of {q_cnt} objects, matching the schema in the style guide above. Preserve every `id` field exactly as given if present.
 
 ## Original Text
 
@@ -47,7 +47,7 @@ You MUST return ONLY a valid JSON array of {q_cnt} objects, matching the schema 
 
 You are auditing ONLY distractor plausibility in the draft questions below, using the "Distractor Plausibility Checklist" in the style guide above. Do not change question wording, the correct answer, explanations, or option-length balance unless a rewritten distractor requires it.
 
-You MUST return ONLY a valid JSON array of {q_cnt} objects, matching the schema in the style guide above. Preserve every `id` field exactly as given.
+You MUST return ONLY a valid JSON object with a single `questions` key containing an array of {q_cnt} objects, matching the schema in the style guide above. Preserve every `id` field exactly as given.
 
 ## Original Text
 
@@ -82,7 +82,7 @@ You MUST return ONLY a valid JSON array of {q_cnt} objects, matching the schema 
 
     for _ in range(3):
         try:
-            draft_response = call_api(generate_prompt, response_json=False, temperature=0.7, enable_thinking=True)
+            draft_response = call_api(generate_prompt, response_json=True, temperature=0.7, enable_thinking=True)
 
             review_prompt = review_prompt_template.format(
                 style_guide=style_guide,
@@ -90,25 +90,32 @@ You MUST return ONLY a valid JSON array of {q_cnt} objects, matching the schema 
                 text=text,
                 draft_json=draft_response
             )
-            reviewed_response = call_api(review_prompt, response_json=False, temperature=0.2, enable_thinking=True)
-            reviewed_questions = json.loads(clean_json_response(reviewed_response))
+            reviewed_response = call_api(review_prompt, response_json=True, temperature=0.2, enable_thinking=True)
+            
+            # Extract the 'questions' array from the parent object
+            reviewed_data = json.loads(clean_json_response(reviewed_response))
+            reviewed_questions = reviewed_data.get("questions", reviewed_data)
             validate_structure(reviewed_questions, q_cnt)
 
             plausibility_prompt = plausibility_prompt_template.format(
                 style_guide=style_guide,
                 q_cnt=q_cnt,
                 text=text,
-                draft_json=json.dumps(reviewed_questions)
+                draft_json=json.dumps({"questions": reviewed_questions})
             )
-            plausibility_response = call_api(plausibility_prompt, response_json=False, temperature=0.2, enable_thinking=True)
-            final_questions = json.loads(clean_json_response(plausibility_response))
+            plausibility_response = call_api(plausibility_prompt, response_json=True, temperature=0.2, enable_thinking=True)
+            
+            # Extract the 'questions' array from the parent object
+            final_data = json.loads(clean_json_response(plausibility_response))
+            final_questions = final_data.get("questions", final_data)
             validate_structure(final_questions, q_cnt)
 
             # Stage 3 can rebalance option length, so re-check after it runs, not before.
             validate_length_parity(final_questions)
 
             return final_questions
-        except Exception:
+        except Exception as e:
+            print(f"[Module: generator, Attempt {_ + 1}/3] Error: {e}")
             continue
 
     raise RuntimeError("Failed to generate quiz after 3 attempts.")
