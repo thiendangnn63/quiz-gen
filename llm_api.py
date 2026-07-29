@@ -1,7 +1,7 @@
 from openai import OpenAI
 
 client = OpenAI(
-    base_url="http://192.168.1.96:8080/v1", 
+    base_url="http://192.168.1.249:8080/v1", 
     api_key="ollama"
 )
 

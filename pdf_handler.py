@@ -34,16 +34,34 @@ def get_text_with_pages(pdf_path):
 
 def get_chapter_ranges(text):
     try:
-        prompt = f"""
-        Analyze this textbook text which contains [Page X] markers.
-        Find the Table of Contents. Map the chapter page numbers to the physical [Page X] markers.
-        Determine the physical start_page and end_page for each chapter.
-        Return a JSON array of objects, each containing: "chapter_number", "title", "start_page" (integer), and "end_page" (integer).
-        Ignore chapters such as "Preface".
-        Text:
+        prompt = f"""## Task
+
+        Analyze this textbook text, which contains `[Page X]` markers.
+
+        1. Find the Table of Contents.
+        2. Map each chapter's listed page number to the physical `[Page X]` markers in the text.
+        3. Determine the physical `start_page` and `end_page` for each chapter.
+        4. Ignore non-chapter sections such as "Preface".
+
+        ## Expected Exact Schema
+
+        ```json
+        [
+        {{
+            "chapter_number": 0,
+            "title": "string",
+            "start_page": 0,
+            "end_page": 0
+        }}
+        ]
+        ```
+
+        ## Text
+
         {text}
         """
-        raw_response = call_api(prompt, response_json=True)
+        
+        raw_response = call_api(prompt, response_json=True, temperature=0.1, enable_thinking=True)
         parsed = json.loads(clean_json_response(raw_response))
 
         if isinstance(parsed, dict):

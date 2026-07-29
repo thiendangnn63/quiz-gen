@@ -45,7 +45,12 @@ def init_db():
             conn.execute("ALTER TABLE quizzes ADD COLUMN is_active INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
             pass
-            
+
+        try:
+            conn.execute("ALTER TABLE quizzes ADD COLUMN time_limit_minutes INTEGER DEFAULT 15")
+        except sqlite3.OperationalError:
+            pass
+
         conn.execute("UPDATE quizzes SET is_active = 0")
         
         conn.execute("""
@@ -324,13 +329,24 @@ def dashboard():
 def toggle_quiz(quiz_id):
     data = request.json
     active_status = 1 if data.get("active") else 0
-    
+
     with sqlite3.connect(DB_PATH) as conn:
-        conn.execute("UPDATE quizzes SET is_active = ? WHERE quiz_id = ?", (active_status, quiz_id))
-        
+        if active_status:
+            try:
+                time_limit = int(data.get("time_limit_minutes", 15))
+            except (TypeError, ValueError):
+                time_limit = 15
+            time_limit = max(1, time_limit)
+            conn.execute(
+                "UPDATE quizzes SET is_active = ?, time_limit_minutes = ? WHERE quiz_id = ?",
+                (active_status, time_limit, quiz_id)
+            )
+        else:
+            conn.execute("UPDATE quizzes SET is_active = ? WHERE quiz_id = ?", (active_status, quiz_id))
+
     for q in dashboard_clients:
         q.put('update')
-        
+
     return jsonify({"status": "success", "is_active": active_status})
 
 @app.route('/api/quizzes/<quiz_id>', methods=['DELETE'])
@@ -420,10 +436,11 @@ def dashboard_stream():
 def launch_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        cursor.execute("SELECT is_active, time_limit_minutes FROM quizzes WHERE quiz_id = ?", (quiz_id,))
         row = cursor.fetchone()
-        
+
     is_active_initial = bool(row[0]) if row else False
+    time_limit_initial = row[1] if row and row[1] else 15
     btn_text = "Close Session" if is_active_initial else "Start Session"
     btn_bg = "#d16656" if is_active_initial else "#5fae7a"
     js_is_active = "true" if is_active_initial else "false"
@@ -467,6 +484,12 @@ def launch_quiz(quiz_id):
       a.primary:hover {{ background: #dab35e; }}
       a.back {{ display: block; margin-top: 20px; font-size: 13px; color: var(--muted); text-decoration: none; }}
       a.back:hover {{ color: var(--text); }}
+      .timer-box {{ text-align: center; margin-bottom: 20px; }}
+      .timer-box label {{ display: block; font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }}
+      .timer-box .timer-input-row {{ display: flex; align-items: center; justify-content: center; gap: 8px; }}
+      .timer-box input {{ width: 70px; padding: 8px 10px; background: var(--bg); border: 1px solid var(--border); color: var(--text); border-radius: 6px; font-family: var(--font-body); font-size: 15px; text-align: center; }}
+      .timer-box input:focus {{ outline: none; border-color: var(--accent); }}
+      .timer-box span {{ font-size: 13px; color: var(--muted); }}
     </style>
     </head>
     <body>
@@ -477,6 +500,13 @@ def launch_quiz(quiz_id):
           <img src="/qr/qr_{quiz_id}.png" alt="QR Code">
         </div>
         <div class="quiz-id">{quiz_id}</div>
+        <div class="timer-box">
+          <label for="time-limit-input">Timer</label>
+          <div class="timer-input-row">
+            <input type="number" id="time-limit-input" min="1" value="{time_limit_initial}" {"disabled" if is_active_initial else ""}>
+            <span>minutes</span>
+          </div>
+        </div>
         <button id="toggle-btn" onclick="toggleSession()">{btn_text}</button>
         <br>
         <a class="primary" href="/quiz?quiz_id={quiz_id}" target="_blank">Open on this device</a>
@@ -486,6 +516,7 @@ def launch_quiz(quiz_id):
         let isActive = {js_is_active};
         const quizId = "{quiz_id}";
         const btn = document.getElementById('toggle-btn');
+        const timeLimitInput = document.getElementById('time-limit-input');
 
         async function toggleSession() {{
             isActive = !isActive;
@@ -493,7 +524,10 @@ def launch_quiz(quiz_id):
                 await fetch(`/api/quiz/${{quizId}}/toggle`, {{
                     method: 'POST',
                     headers: {{ 'Content-Type': 'application/json' }},
-                    body: JSON.stringify({{ active: isActive }})
+                    body: JSON.stringify({{
+                        active: isActive,
+                        time_limit_minutes: parseInt(timeLimitInput.value, 10) || 15
+                    }})
                 }});
                 updateUI();
             }} catch (e) {{
@@ -506,9 +540,11 @@ def launch_quiz(quiz_id):
             if (isActive) {{
                 btn.textContent = "Close Session";
                 btn.style.background = "#d16656";
+                timeLimitInput.disabled = true;
             }} else {{
                 btn.textContent = "Start Session";
                 btn.style.background = "#5fae7a";
+                timeLimitInput.disabled = false;
             }}
         }}
       </script>
@@ -573,19 +609,33 @@ def edit_quiz(quiz_id):
       .radio-group { display: flex; gap: 10px; align-items: center; margin-bottom: 8px;}
       .radio-group input[type="radio"] { width: auto; margin: 0; cursor: pointer; accent-color: var(--correct); }
       .radio-group input[type="text"] { margin-bottom: 0; }
+      .sticky-bar {
+        position: sticky; top: 0; z-index: 10;
+        display: flex; align-items: center; justify-content: space-between; gap: 16px;
+        background: var(--bg);
+        margin: -48px -20px 24px; padding: 32px 20px 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .sticky-bar h2 { margin: 0; }
+      #save-btn { width: auto; margin: 0; padding: 10px 20px; flex-shrink: 0; }
+      #save-btn:disabled { background: var(--border); color: var(--muted); cursor: not-allowed; }
     </style>
     </head>
     <body>
     <div class="wrap">
-      <div class="header-links"><a href="/">&larr; Back to dashboard</a></div>
-      <h2>Edit quiz</h2>
-      <div id="active-warning" style="display:none; background: var(--incorrect-dim, rgba(209,102,86,0.14)); color: var(--incorrect); border: 1px solid var(--incorrect); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 20px; font-size: 13px;">
+    <div class="sticky-bar">
+        <div>
+        <div class="header-links" style="margin-bottom: 8px;"><a href="/">&larr; Back to dashboard</a></div>
+        <h2>Edit quiz</h2>
+        </div>
+        <button id="save-btn" onclick="saveQuiz()">Save changes</button>
+    </div>
+    <div id="active-warning" style="display:none; background: var(--incorrect-dim, rgba(209,102,86,0.14)); color: var(--incorrect); border: 1px solid var(--incorrect); border-radius: var(--radius-sm); padding: 12px 16px; margin-bottom: 20px; font-size: 13px;">
         This quiz session is currently active. Close it from the dashboard before editing, or in-progress attempts may be graded incorrectly.
-      </div>
-      <label>Title</label>
-      <input type="text" id="quiz-title">
-      <div id="editor"></div>
-      <button id="save-btn" onclick="saveQuiz()">Save changes</button>
+    </div>
+    <label>Title</label>
+    <input type="text" id="quiz-title">
+    <div id="editor"></div>
     </div>
     <script>
       const quizId = window.location.pathname.split('/').pop();
@@ -700,11 +750,13 @@ def update_quiz(quiz_id):
 def start_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT is_active FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        cursor.execute("SELECT is_active, time_limit_minutes FROM quizzes WHERE quiz_id = ?", (quiz_id,))
         row = cursor.fetchone()
-        
+
     if not row or not row[0]:
         return jsonify({"error": "This quiz is not currently accepting responses."}), 403
+
+    time_limit_minutes = row[1] if row[1] else 15
 
     filepath = f"quizzes/{quiz_id}.json"
     if not os.path.exists(filepath):
@@ -742,7 +794,8 @@ def start_quiz(quiz_id):
     return jsonify({
         "session_token": session_token,
         "title": f"Quiz {quiz_id}",
-        "questions": client_questions
+        "questions": client_questions,
+        "time_limit_seconds": time_limit_minutes * 60
     })
 
 @app.route('/api/quiz/<quiz_id>/submit', methods=['POST'])
