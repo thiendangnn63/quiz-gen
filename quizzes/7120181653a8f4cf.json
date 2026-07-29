@@ -1,7 +1,8 @@
 {
-    "quiz_id": "7120181653a8f4cf",
+    "is_active": false,
     "questions": [
         {
+            "id": "q0",
             "question": "How do modern software cars track how drivers use built-in apps?",
             "options": [
                 "By asking drivers to fill out weekly paper forms.",
@@ -10,10 +11,10 @@
                 "By scanning driver fingerprints to log app access times."
             ],
             "correct_answer_index": 1,
-            "explanation": "SDVs collect real usage data when drivers agree, which helps makers build better features faster.",
-            "id": "q0"
+            "explanation": "SDVs collect real usage data when drivers agree, which helps makers build better features faster."
         },
         {
+            "id": "q1",
             "question": "Why did Nokia lose market share because of its operating systems?",
             "options": [
                 "It delayed software updates for years after phone release.",
@@ -22,10 +23,10 @@
                 "It focused only on hardware and ignored internet services."
             ],
             "correct_answer_index": 1,
-            "explanation": "Too many incompatible systems confused developers and users, which broke the app market.",
-            "id": "q1"
+            "explanation": "Too many incompatible systems confused developers and users, which broke the app market."
         },
         {
+            "id": "q2",
             "question": "What causes extreme software fragmentation in today's cars?",
             "options": [
                 "Dealerships change software rules for each new customer.",
@@ -34,10 +35,10 @@
                 "Drivers install personal apps that block factory software updates."
             ],
             "correct_answer_index": 1,
-            "explanation": "Many suppliers provide different hardware and code, so apps cannot easily run on multiple car models.",
-            "id": "q2"
+            "explanation": "Many suppliers provide different hardware and code, so apps cannot easily run on multiple car models."
         },
         {
+            "id": "q3",
             "question": "What job do standardized vehicle APIs perform for developers?",
             "options": [
                 "They translate legacy database records into modern cloud formats.",
@@ -46,10 +47,10 @@
                 "They automatically route customer complaints to regional service centers."
             ],
             "correct_answer_index": 1,
-            "explanation": "Fixed APIs let programmers write code once and use it in many cars without rewriting it.",
-            "id": "q3"
+            "explanation": "Fixed APIs let programmers write code once and use it in many cars without rewriting it."
         },
         {
+            "id": "q4",
             "question": "How does the hardware abstraction layer help car software run properly?",
             "options": [
                 "It stores all driver preferences in a single cloud database.",
@@ -58,10 +59,10 @@
                 "It encrypts navigation routes to prevent GPS tracking."
             ],
             "correct_answer_index": 1,
-            "explanation": "HAL acts as a bridge so software works on many different hardware designs without changes.",
-            "id": "q4"
+            "explanation": "HAL acts as a bridge so software works on many different hardware designs without changes."
         },
         {
+            "id": "q5",
             "question": "Why do engineers need a strong software stack for cars?",
             "options": [
                 "It compiles driver preference profiles into local storage files.",
@@ -70,10 +71,10 @@
                 "It synchronizes media playback across multiple vehicle speakers."
             ],
             "correct_answer_index": 1,
-            "explanation": "A solid software stack connects code to hardware, making it easier to add and run new innovations.",
-            "id": "q5"
+            "explanation": "A solid software stack connects code to hardware, making it easier to add and run new innovations."
         },
         {
+            "id": "q6",
             "question": "How can car makers keep their unique features while using shared software rules?",
             "options": [
                 "They can standardize most common tools and keep special tools for themselves.",
@@ -82,10 +83,10 @@
                 "They can force drivers to visit a shop for every single update."
             ],
             "correct_answer_index": 0,
-            "explanation": "Making 70-80% of APIs standard saves time, while keeping 20-30% private allows each brand to stand out.",
-            "id": "q6"
+            "explanation": "Making 70-80% of APIs standard saves time, while keeping 20-30% private allows each brand to stand out."
         },
         {
+            "id": "q7",
             "question": "What is the main benefit of using harmonized APIs across different car brands?",
             "options": [
                 "It requires all developers to use the same programming language.",
@@ -94,10 +95,10 @@
                 "It aligns warranty terms for software updates across brands."
             ],
             "correct_answer_index": 1,
-            "explanation": "Shared rules let information flow easily between drivers, services, and different car companies.",
-            "id": "q7"
+            "explanation": "Shared rules let information flow easily between drivers, services, and different car companies."
         },
         {
+            "id": "q8",
             "question": "How does opening up software access help solve complex driving challenges?",
             "options": [
                 "It centralizes all regional traffic data in a single government server.",
@@ -106,10 +107,10 @@
                 "It limits software updates to only one major release per decade."
             ],
             "correct_answer_index": 1,
-            "explanation": "Open access creates a global marketplace where many developers can work on hard driving problems together.",
-            "id": "q8"
+            "explanation": "Open access creates a global marketplace where many developers can work on hard driving problems together."
         },
         {
+            "id": "q9",
             "question": "What does a cloud-native approach allow software companies to do?",
             "options": [
                 "It bundles all application code into a single monolithic executable.",
@@ -118,10 +119,10 @@
                 "It locks software versions so they never change after release."
             ],
             "correct_answer_index": 1,
-            "explanation": "Cloud-native uses internet rules to help software adapt quickly, handle huge traffic, and stay reliable.",
-            "id": "q9"
+            "explanation": "Cloud-native uses internet rules to help software adapt quickly, handle huge traffic, and stay reliable."
         },
         {
+            "id": "q10",
             "question": "Why are microservices useful for large software teams?",
             "options": [
                 "They let different groups change small parts of the system at different speeds.",
@@ -130,10 +131,10 @@
                 "They store every line of code in a single public library."
             ],
             "correct_answer_index": 0,
-            "explanation": "Microservices separate code into small pieces, so teams can update their parts without breaking everything else.",
-            "id": "q10"
+            "explanation": "Microservices separate code into small pieces, so teams can update their parts without breaking everything else."
         },
         {
+            "id": "q11",
             "question": "What role do containers play in cloud-native software?",
             "options": [
                 "They compile raw sensor data into visual dashboard graphics.",
@@ -142,10 +143,10 @@
                 "They automatically print paper copies of every code update for archives."
             ],
             "correct_answer_index": 1,
-            "explanation": "Containers package software so it runs consistently across different computers, offering speed and security.",
-            "id": "q11"
+            "explanation": "Containers package software so it runs consistently across different computers, offering speed and security."
         },
         {
+            "id": "q12",
             "question": "How do DevOps practices improve modern software development?",
             "options": [
                 "They let cross-team groups release small, reliable code changes frequently.",
@@ -154,10 +155,10 @@
                 "They separate developers from managers so each group works in silence."
             ],
             "correct_answer_index": 0,
-            "explanation": "DevOps teams work together to push safe updates often, keeping pace with fast market needs.",
-            "id": "q12"
+            "explanation": "DevOps teams work together to push safe updates often, keeping pace with fast market needs."
         },
         {
+            "id": "q13",
             "question": "What did the open source community provide to build the modern internet?",
             "options": [
                 "It designed proprietary encryption standards for commercial banking.",
@@ -166,10 +167,10 @@
                 "It developed standardized network protocols for global data routing."
             ],
             "correct_answer_index": 1,
-            "explanation": "Open source groups built reliable foundations like Linux and Docker that support most modern applications.",
-            "id": "q13"
+            "explanation": "Open source groups built reliable foundations like Linux and Docker that support most modern applications."
         },
         {
+            "id": "q14",
             "question": "How do companies make money from open source software today?",
             "options": [
                 "They sell extra support, training, and special services around the free code.",
@@ -178,10 +179,10 @@
                 "They offer premium consulting packages for enterprise system integration."
             ],
             "correct_answer_index": 0,
-            "explanation": "Companies keep the core code free but earn revenue by offering professional help and custom features.",
-            "id": "q14"
+            "explanation": "Companies keep the core code free but earn revenue by offering professional help and custom features."
         },
         {
+            "id": "q15",
             "question": "What is the main goal of the Eclipse SDV working group?",
             "options": [
                 "It develops standardized safety protocols for autonomous braking systems.",
@@ -190,10 +191,10 @@
                 "It manages global licensing agreements for proprietary navigation maps."
             ],
             "correct_answer_index": 1,
-            "explanation": "Eclipse SDV creates a public software foundation that helps many developers improve vehicle systems faster.",
-            "id": "q15"
+            "explanation": "Eclipse SDV creates a public software foundation that helps many developers improve vehicle systems faster."
         },
         {
+            "id": "q16",
             "question": "What job does an app store perform for vehicle software?",
             "options": [
                 "It verifies digital signatures to ensure software authenticity.",
@@ -202,10 +203,10 @@
                 "It aggregates user feedback to prioritize future feature updates."
             ],
             "correct_answer_index": 1,
-            "explanation": "App stores gather many programs in one place, making it simple for users to install useful tools.",
-            "id": "q16"
+            "explanation": "App stores gather many programs in one place, making it simple for users to install useful tools."
         },
         {
+            "id": "q17",
             "question": "Why do simple programming languages matter for car app creators?",
             "options": [
                 "They let newcomers build programs quickly without studying complex old systems.",
@@ -214,10 +215,10 @@
                 "They require every app to run on a single specific car model."
             ],
             "correct_answer_index": 0,
-            "explanation": "Easy languages lower the learning barrier, so more people can create useful car tools fast.",
-            "id": "q17"
+            "explanation": "Easy languages lower the learning barrier, so more people can create useful car tools fast."
         },
         {
+            "id": "q18",
             "question": "Why do car makers face a harder challenge than smartphone makers with software?",
             "options": [
                 "Cars must handle strict safety rules and instant response needs.",
@@ -226,10 +227,10 @@
                 "Cars require developers to install software on physical paper cards."
             ],
             "correct_answer_index": 0,
-            "explanation": "Vehicles need fast processing for safety, so software must work instantly and never fail during driving.",
-            "id": "q18"
+            "explanation": "Vehicles need fast processing for safety, so software must work instantly and never fail during driving."
         },
         {
+            "id": "q19",
             "question": "What happens when companies collaborate on non-differentiating software parts?",
             "options": [
                 "They save time and money to focus on features that customers actually want.",
@@ -238,8 +239,8 @@
                 "They prevent any company from ever releasing a new software update."
             ],
             "correct_answer_index": 0,
-            "explanation": "Sharing basic tools frees up resources, so companies can spend more effort on unique customer features.",
-            "id": "q19"
+            "explanation": "Sharing basic tools frees up resources, so companies can spend more effort on unique customer features."
         }
-    ]
+    ],
+    "quiz_id": "7120181653a8f4cf"
 }

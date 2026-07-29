@@ -201,7 +201,7 @@ def dashboard():
               </select>
             </div>
             <div class="config-group">
-              <label for="q-cnt">Question Bank Count</label>
+              <label for="q-cnt">Qs Count (20 for best quality)</label>
               <input type="number" id="q-cnt" value="20" min="5" max="50">
             </div>
             <div class="config-group">
