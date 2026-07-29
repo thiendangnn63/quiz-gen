@@ -4,17 +4,17 @@ This document defines the quality bar for every multiple-choice question in this
 
 ## Output Schema
 
-Output is always a bare JSON array — never wrapped in a parent object like `{"quiz_id": "...", "questions": [...]}` — of objects matching this exact schema:
+Output is always a bare JSON array — never wrapped in a parent object like `{{"quiz_id": "...", "questions": [...]}}` — of objects matching this exact schema:
 
 ```json
 [
-  {
+  {{
     "question": "string",
     "options": ["string", "string", "string", "string"],
     "correct_answer_index": 0,
     "explanation": "string",
     "distractor_rationale": "string"
-  }
+  }}
 ]
 ```
 

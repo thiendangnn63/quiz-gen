@@ -4,7 +4,7 @@ import time
 from src.llm_api import call_api
 from src.pdf_handler import ingest_chapter, clean_json_response
 
-STYLE_GUIDE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools/quiz_style_guide.md")
+STYLE_GUIDE_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "tools/quiz_style_guide.md")
 
 def _load_style_guide(english_level, difficulty):
     with open(STYLE_GUIDE_PATH, "r", encoding="utf-8") as f:

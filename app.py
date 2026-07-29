@@ -44,12 +44,12 @@ def init_db():
         try:
             conn.execute("ALTER TABLE quizzes ADD COLUMN is_active INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
-            pass
+            print("Database error")
 
         try:
             conn.execute("ALTER TABLE quizzes ADD COLUMN time_limit_minutes INTEGER DEFAULT 15")
         except sqlite3.OperationalError:
-            pass
+            print("Database error")
 
         conn.execute("UPDATE quizzes SET is_active = 0")
         
@@ -97,7 +97,8 @@ def process_pdf(filepath, quiz_id, english_level="A2", q_cnt=20, difficulty="Med
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("UPDATE quizzes SET status = 'ready' WHERE quiz_id = ?", (quiz_id,))
             
-    except Exception:
+    except Exception as e:
+        print(f"[Module: app, Function: process_pdf] Error generating quiz {quiz_id}: {e}")
         with sqlite3.connect(DB_PATH) as conn:
             conn.execute("UPDATE quizzes SET status = 'failed' WHERE quiz_id = ?", (quiz_id,))
     
