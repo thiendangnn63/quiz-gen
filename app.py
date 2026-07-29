@@ -44,12 +44,17 @@ def init_db():
         try:
             conn.execute("ALTER TABLE quizzes ADD COLUMN is_active INTEGER DEFAULT 0")
         except sqlite3.OperationalError:
-            print("Database error")
+            pass
 
         try:
-            conn.execute("ALTER TABLE quizzes ADD COLUMN time_limit_minutes INTEGER DEFAULT 15")
+            conn.execute("ALTER TABLE quizzes ADD COLUMN time_limit_minutes INTEGER DEFAULT 10")
         except sqlite3.OperationalError:
-            print("Database error")
+            pass
+
+        try:
+            conn.execute("ALTER TABLE quizzes ADD COLUMN num_questions INTEGER DEFAULT 10")
+        except sqlite3.OperationalError:
+            pass
 
         conn.execute("UPDATE quizzes SET is_active = 0")
         
@@ -334,13 +339,29 @@ def toggle_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
         if active_status:
             try:
-                time_limit = int(data.get("time_limit_minutes", 15))
+                time_limit = int(data.get("time_limit_minutes", 10))
             except (TypeError, ValueError):
-                time_limit = 15
+                time_limit = 10
             time_limit = max(1, time_limit)
+
+            try:
+                num_questions = int(data.get("num_questions", 10))
+            except (TypeError, ValueError):
+                num_questions = 10
+            num_questions = max(1, num_questions)
+
+            # Cap at the actual size of the question bank so start_quiz never
+            # tries to sample more questions than exist.
+            filepath = f"quizzes/{quiz_id}.json"
+            if os.path.exists(filepath):
+                with open(filepath, "r", encoding="utf-8") as f:
+                    bank_size = len(json.loads(f.read()).get("questions", []))
+                if bank_size > 0:
+                    num_questions = min(num_questions, bank_size)
+
             conn.execute(
-                "UPDATE quizzes SET is_active = ?, time_limit_minutes = ? WHERE quiz_id = ?",
-                (active_status, time_limit, quiz_id)
+                "UPDATE quizzes SET is_active = ?, time_limit_minutes = ?, num_questions = ? WHERE quiz_id = ?",
+                (active_status, time_limit, num_questions, quiz_id)
             )
         else:
             conn.execute("UPDATE quizzes SET is_active = ? WHERE quiz_id = ?", (active_status, quiz_id))
@@ -437,11 +458,18 @@ def dashboard_stream():
 def launch_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT is_active, time_limit_minutes FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        cursor.execute("SELECT is_active, time_limit_minutes, num_questions FROM quizzes WHERE quiz_id = ?", (quiz_id,))
         row = cursor.fetchone()
 
+    bank_size = 10
+    filepath = f"quizzes/{quiz_id}.json"
+    if os.path.exists(filepath):
+        with open(filepath, "r", encoding="utf-8") as f:
+            bank_size = len(json.loads(f.read()).get("questions", [])) or 10
+
     is_active_initial = bool(row[0]) if row else False
-    time_limit_initial = row[1] if row and row[1] else 15
+    time_limit_initial = row[1] if row and row[1] else 10
+    num_questions_initial = row[2] if row and row[2] else min(10, bank_size)
     btn_text = "Close Session" if is_active_initial else "Start Session"
     btn_bg = "#d16656" if is_active_initial else "#5fae7a"
     js_is_active = "true" if is_active_initial else "false"
@@ -508,6 +536,13 @@ def launch_quiz(quiz_id):
             <span>minutes</span>
           </div>
         </div>
+        <div class="timer-box">
+          <label for="num-questions-input">Number of Questions</label>
+          <div class="timer-input-row">
+            <input type="number" id="num-questions-input" min="1" max="{bank_size}" value="{num_questions_initial}" {"disabled" if is_active_initial else ""}>
+            <span>of {bank_size} available</span>
+          </div>
+        </div>
         <button id="toggle-btn" onclick="toggleSession()">{btn_text}</button>
         <br>
         <a class="primary" href="/quiz?quiz_id={quiz_id}" target="_blank">Open on this device</a>
@@ -518,6 +553,7 @@ def launch_quiz(quiz_id):
         const quizId = "{quiz_id}";
         const btn = document.getElementById('toggle-btn');
         const timeLimitInput = document.getElementById('time-limit-input');
+        const numQuestionsInput = document.getElementById('num-questions-input');
 
         async function toggleSession() {{
             isActive = !isActive;
@@ -527,7 +563,8 @@ def launch_quiz(quiz_id):
                     headers: {{ 'Content-Type': 'application/json' }},
                     body: JSON.stringify({{
                         active: isActive,
-                        time_limit_minutes: parseInt(timeLimitInput.value, 10) || 15
+                        time_limit_minutes: parseInt(timeLimitInput.value, 10) || 10,
+                        num_questions: parseInt(numQuestionsInput.value, 10) || 10
                     }})
                 }});
                 updateUI();
@@ -542,10 +579,12 @@ def launch_quiz(quiz_id):
                 btn.textContent = "Close Session";
                 btn.style.background = "#d16656";
                 timeLimitInput.disabled = true;
+                numQuestionsInput.disabled = true;
             }} else {{
                 btn.textContent = "Start Session";
                 btn.style.background = "#5fae7a";
                 timeLimitInput.disabled = false;
+                numQuestionsInput.disabled = false;
             }}
         }}
       </script>
@@ -751,13 +790,14 @@ def update_quiz(quiz_id):
 def start_quiz(quiz_id):
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT is_active, time_limit_minutes FROM quizzes WHERE quiz_id = ?", (quiz_id,))
+        cursor.execute("SELECT is_active, time_limit_minutes, num_questions FROM quizzes WHERE quiz_id = ?", (quiz_id,))
         row = cursor.fetchone()
 
     if not row or not row[0]:
         return jsonify({"error": "This quiz is not currently accepting responses."}), 403
 
-    time_limit_minutes = row[1] if row[1] else 15
+    time_limit_minutes = row[1] if row[1] else 10
+    num_questions = row[2] if row[2] else 10
 
     filepath = f"quizzes/{quiz_id}.json"
     if not os.path.exists(filepath):
@@ -770,7 +810,10 @@ def start_quiz(quiz_id):
     seed = random.random()
 
     bank = quiz_data["questions"]
-    sample = min(10, len(bank))
+    # num_questions is already capped at the bank size when toggle_quiz stores it,
+    # but re-cap here too in case the DB value predates that safeguard or the
+    # bank was edited smaller after the session was configured.
+    sample = min(num_questions, len(bank))
     selected_qs = random.Random(seed).sample(bank, sample)
     
     active_sessions[session_token] = {
